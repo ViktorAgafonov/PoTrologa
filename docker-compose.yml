@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  potrologa:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SESSION_SECRET=${SESSION_SECRET:-potrologa-secret-change-me}
+      - DATABASE_PATH=./data/database/potrologa.sqlite
+    volumes:
+      - potrologa-data:/app/backend/data
+    restart: unless-stopped
+
+volumes:
+  potrologa-data:

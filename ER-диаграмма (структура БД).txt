@@ -1,0 +1,129 @@
+1. ER-диаграмма (структура БД)
+┌────────────────────┐
+│ users              		 │
+├────────────────────┤
+│ id                 		 │
+│ login              		 │
+│ password_hash      		 │
+│ role               		 │
+│ email              		 │
+│ is_active          		 │
+│ created_at         		 │
+└─────────┬──────────┘
+              │
+              │
+              │
+┌─────────▼──────────┐
+│ instruments        	  	 │
+├────────────────────┤
+│ id                 		 │
+│ inventory_number   		 │
+│ serial_number      		 │
+│ type_id            		 │
+│ subtype_id         		 │
+│ name               		 │
+│ model              		 │
+│ manufacturer       		 │
+│ start_date         		 │
+│ workshop_id        		 │
+│ area_id            		 │
+│ responsible_id     		 │
+│ calibration_period 		 │
+│ status             		 │
+│ created_at         		 │
+│ updated_at         		 │
+└──┬──────┬──────────┘
+    │        │
+    │        │
+    │        │
+┌──▼───┐ ┌▼────────────────┐
+│types    │ │responsibles     	 	 │
+├──────┤ ├─────────────────┤
+│id    	  │ │id               		 │
+│name     │ │position         		 │
+└──┬───┘ │full_name        		 │
+    │       └─────────────────┘
+    │
+┌──▼─────────────┐
+│subtypes        	 	│
+├────────────────┤
+│id             		│
+│type_id         		│
+│name            		│
+└────────────────┘
+
+
+┌────────────────────┐
+│ verification_log   		 │
+├────────────────────┤
+│ id                 		 │
+│ instrument_id      		 │
+│ verification_date  		 │
+│ next_date          		 │
+│ certificate_number 		 │
+│ organization       		 │
+│ result             		 │
+│ document_id        		 │
+└────────────────────┘
+
+
+┌────────────────────┐
+│ repairs            		 │
+├────────────────────┤
+│ id                 		 │
+│ instrument_id      		 │
+│ send_date          		 │
+│ reason             		 │
+│ contractor         		 │
+│ result             		 │
+│ return_date        		 │
+│ comments           		 │
+└────────────────────┘
+
+
+┌────────────────────┐
+│ documents          		 │
+├────────────────────┤
+│ id                 		 │
+│ instrument_id      		 │
+│ type               		 │
+│ filename           		 │
+│ filepath           		 │
+│ upload_date        		 │
+└────────────────────┘
+
+
+┌────────────────────┐
+│ writeoff           		 │
+├────────────────────┤
+│ id                 │
+│ instrument_id      │
+│ date               │
+│ reason             │
+│ act_number         │
+│ document_id        │
+└────────────────────┘
+
+
+┌────────────────────┐
+│ notifications      │
+├────────────────────┤
+│ id                 │
+│ user_id            │
+│ type               │
+│ message            │
+│ is_read            │
+│ created_at         │
+└────────────────────┘
+
+
+┌────────────────────┐
+│ audit_log          │
+├────────────────────┤
+│ id                 │
+│ user_id            │
+│ action             │
+│ entity             │
+│ entity_id          │
+│ timestamp          │
+└────────────────────┘

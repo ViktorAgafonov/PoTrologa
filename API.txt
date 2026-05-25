@@ -1,0 +1,101 @@
+2. API
+
+Стиль:
+
+REST API
+JSON
+/api/v1/
+Авторизация
+Вход
+POST /api/v1/auth/login
+
+Запрос:
+
+{
+    "login":"admin",
+    "password":"password"
+}
+
+Ответ:
+
+{
+    "access_token":"..."
+}
+Выход
+POST /api/v1/auth/logout
+Средства измерения
+Получить список
+GET /api/v1/instruments
+
+Параметры:
+
+?page=1
+&limit=50
+&search=весы
+&type=1
+&status=active
+Получить карточку
+GET /api/v1/instruments/{id}
+Создать
+POST /api/v1/instruments
+Изменить
+PUT /api/v1/instruments/{id}
+Списание
+POST /api/v1/instruments/{id}/writeoff
+Перевод в ремонт
+POST /api/v1/instruments/{id}/repair
+Добавить поверку
+POST /api/v1/instruments/{id}/verification
+Получить историю поверок
+GET /api/v1/instruments/{id}/verification
+Получить историю ремонтов
+GET /api/v1/instruments/{id}/repairs
+Импорт
+Загрузить XLSX
+POST /api/v1/import/upload
+
+Ответ:
+
+{
+    "import_id":124
+}
+Проверить импорт
+GET /api/v1/import/124/preview
+
+Ответ:
+
+{
+    "new_records":35,
+    "updated_records":20,
+    "conflicts":6
+}
+Подтвердить импорт
+POST /api/v1/import/124/commit
+Документы
+Загрузка
+POST /api/v1/documents
+Скачать
+GET /api/v1/documents/{id}
+Удалить
+DELETE /api/v1/documents/{id}
+Отчеты
+Общий
+GET /api/v1/reports/general
+По поверкам
+GET /api/v1/reports/calibration
+По подразделениям
+GET /api/v1/reports/departments
+Бэкапы
+Создать
+POST /api/v1/backups/create
+Список
+GET /api/v1/backups
+Скачать
+GET /api/v1/backups/{id}
+Восстановить
+POST /api/v1/backups/restore
+Уведомления
+Получить список
+GET /api/v1/notifications
+Отметить прочитанным
+POST /api/v1/notifications/{id}/read
