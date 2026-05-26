@@ -23,13 +23,11 @@ COPY --from=frontend-builder /app/frontend/dist ../frontend/dist
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-# Создаём директории данных и пользователя 1000
+# Создаём директории данных, используем встроенного пользователя node
 RUN mkdir -p data/database data/documents data/backups data/logs data/tmp \
-    && addgroup -g 1000 -S appgroup \
-    && adduser -u 1000 -S appuser -G appgroup \
-    && chown -R appuser:appgroup /app
+    && chown -R node:node /app
 
-USER appuser
+USER node
 
 EXPOSE 3000
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
