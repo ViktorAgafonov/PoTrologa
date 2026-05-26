@@ -40,7 +40,6 @@ export const instrumentApi = {
   addRepair: (id: number, data: any) =>
     request<any>(`/instruments/${id}/repair`, { method: 'POST', body: JSON.stringify(data) }),
   getRepairs: (id: number) => request<any>(`/instruments/${id}/repairs`),
-  dashboard: () => request<any>('/instruments/dashboard'),
 }
 
 // Импорт
@@ -87,11 +86,8 @@ export const referenceApi = {
   createSubtype: (data: any) => request<any>('/references/subtypes', { method: 'POST', body: JSON.stringify(data) }),
   getOrganizations: () => request<any>('/references/organizations'),
   createOrganization: (data: any) => request<any>('/references/organizations', { method: 'POST', body: JSON.stringify(data) }),
-  getResponsibles: () => request<any>('/references/responsibles'),
-  createResponsible: (data: any) => request<any>('/references/responsibles', { method: 'POST', body: JSON.stringify(data) }),
   deleteType: (id: number) => request<any>(`/references/types/${id}`, { method: 'DELETE' }),
   deleteOrganization: (id: number) => request<any>(`/references/organizations/${id}`, { method: 'DELETE' }),
-  deleteResponsible: (id: number) => request<any>(`/references/responsibles/${id}`, { method: 'DELETE' }),
 }
 
 // Процедуры списания
@@ -100,10 +96,6 @@ export const writeoffApi = {
   getAll: () => request<any>('/writeoff-procedures'),
   getById: (id: number) => request<any>(`/writeoff-procedures/${id}`),
   sendToApproval: (id: number) => request<any>(`/writeoff-procedures/${id}/send-to-approval`, { method: 'POST' }),
-  addApproval: (id: number, data: any) =>
-    request<any>(`/writeoff-procedures/${id}/approvals`, { method: 'POST', body: JSON.stringify(data) }),
-  approve: (approvalId: number, approved: boolean, comment?: string) =>
-    request<any>(`/writeoff-procedures/approvals/${approvalId}/approve`, { method: 'POST', body: JSON.stringify({ approved, comment }) }),
   uploadScan: (id: number, file: File) => {
     const fd = new FormData()
     fd.append('file', file)

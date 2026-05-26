@@ -19,9 +19,10 @@ export class InstrumentService {
     serialNumber: 'i.serialNumber',
     status: 'i.status',
     createdAt: 'i.createdAt',
+    lastVerificationDate: 'i.lastVerificationDate',
+    nextVerificationDate: 'i.nextVerificationDate',
     type: 'type.name',
-    organization: 'org.factory',
-    responsible: 'resp.fullName',
+    organization: 'org.workshop',
   };
 
   // Список СИ с фильтрацией, поиском, сортировкой и пагинацией
@@ -42,8 +43,7 @@ export class InstrumentService {
       .createQueryBuilder('i')
       .leftJoinAndSelect('i.type', 'type')
       .leftJoinAndSelect('i.subtype', 'subtype')
-      .leftJoinAndSelect('i.organization', 'org')
-      .leftJoinAndSelect('i.responsible', 'resp');
+      .leftJoinAndSelect('i.organization', 'org');
 
     if (params.search) {
       qb.andWhere(
@@ -70,7 +70,7 @@ export class InstrumentService {
   async getById(id: number) {
     return this.repo.findOne({
       where: { id },
-      relations: ['type', 'subtype', 'organization', 'responsible', 'verifications', 'repairs', 'documents'],
+      relations: ['type', 'subtype', 'organization', 'verifications', 'repairs', 'documents'],
     });
   }
 
@@ -95,10 +95,17 @@ export class InstrumentService {
     const record = this.verRepo.create(data);
     const saved = await this.verRepo.save(record);
 
+    // Обновить даты поверки на карточке СИ
+    const update: Partial<Instrument> = {
+      lastVerificationDate: data.verificationDate as any,
+      nextVerificationDate: data.nextVerificationDate as any,
+    };
+
     // Обновить статус СИ при непрохождении поверки
     if (data.result === VerificationResult.FAILED) {
-      await this.repo.update(instrumentId, { status: InstrumentStatus.ACTIVE });
+      update.status = InstrumentStatus.ACTIVE;
     }
+    await this.repo.update(instrumentId, update);
     return saved;
   }
 
@@ -127,35 +134,4 @@ export class InstrumentService {
     });
   }
 
-  // Подсчёт статистики для дашборда
-  async getDashboardStats() {
-    const total = await this.repo.count();
-    const expired = await this.repo.count({ where: { status: InstrumentStatus.EXPIRED } });
-    const verMonth = await this.repo.count({ where: { status: InstrumentStatus.VERIFICATION_MONTH } });
-    const ver14 = await this.repo.count({ where: { status: InstrumentStatus.VERIFICATION_14DAYS } });
-    const repair = await this.repo.count({ where: { status: InstrumentStatus.REPAIR } });
-    const writeoff = await this.repo.count({ where: { status: InstrumentStatus.WRITEOFF } });
-
-    // Группировка по типам
-    const byType = await this.repo
-      .createQueryBuilder('i')
-      .select('type.name', 'typeName')
-      .addSelect('COUNT(*)', 'count')
-      .leftJoin('i.type', 'type')
-      .groupBy('type.name')
-      .getRawMany();
-
-    // Группировка по подразделениям
-    const byOrg = await this.repo
-      .createQueryBuilder('i')
-      .select('org.factory', 'factory')
-      .addSelect('org.workshop', 'workshop')
-      .addSelect('COUNT(*)', 'count')
-      .leftJoin('i.organization', 'org')
-      .groupBy('org.factory')
-      .addGroupBy('org.workshop')
-      .getRawMany();
-
-    return { total, expired, verMonth, ver14, repair, writeoff, byType, byOrg };
-  }
 }

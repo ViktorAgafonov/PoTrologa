@@ -2,10 +2,8 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
-import DashboardPage from './pages/DashboardPage'
 import InstrumentListPage from './pages/InstrumentListPage'
 import InstrumentCardPage from './pages/InstrumentCardPage'
-import ImportPage from './pages/ImportPage'
 import BackupPage from './pages/BackupPage'
 import SettingsPage from './pages/SettingsPage'
 import WriteoffPage from './pages/WriteoffPage'
@@ -25,10 +23,8 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-          <Route index element={<DashboardPage />} />
-          <Route path="instruments" element={<InstrumentListPage />} />
+          <Route index element={<InstrumentListPage />} />
           <Route path="instruments/:id" element={<InstrumentCardPage />} />
-          <Route path="import" element={<ImportPage />} />
           <Route path="backups" element={<BackupPage />} />
           <Route path="writeoff" element={<WriteoffPage />} />
           <Route path="templates" element={<TemplateEditorPage />} />

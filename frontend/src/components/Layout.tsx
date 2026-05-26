@@ -2,32 +2,26 @@ import { useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   AppBar, Toolbar, Typography, IconButton, Drawer, List, ListItemButton,
-  ListItemIcon, ListItemText, Box, Divider, Avatar, Menu, MenuItem,
+  ListItemIcon, ListItemText, Box, Divider, Avatar, Menu, MenuItem, Tooltip,
 } from '@mui/material'
-import MenuIcon from '@mui/icons-material/Menu'
-import DashboardIcon from '@mui/icons-material/Dashboard'
 import BuildIcon from '@mui/icons-material/Build'
-import UploadFileIcon from '@mui/icons-material/UploadFile'
 import BackupIcon from '@mui/icons-material/Backup'
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep'
 import DescriptionIcon from '@mui/icons-material/Description'
 import SettingsIcon from '@mui/icons-material/Settings'
 import { useAuth } from '../hooks/useAuth'
 
-const DRAWER_WIDTH = 240
+const DRAWER_WIDTH = 220
 
 const menuItems = [
-  { text: 'Дашборд', icon: <DashboardIcon />, path: '/' },
-  { text: 'Средства измерения', icon: <BuildIcon />, path: '/instruments' },
-  { text: 'Импорт', icon: <UploadFileIcon />, path: '/import' },
-  { text: 'Списание', icon: <DeleteSweepIcon />, path: '/writeoff' },
-  { text: 'Шаблоны', icon: <DescriptionIcon />, path: '/templates' },
-  { text: 'Бэкапы', icon: <BackupIcon />, path: '/backups' },
-  { text: 'Настройки', icon: <SettingsIcon />, path: '/settings' },
+  { text: 'Средства измерения', icon: <BuildIcon />, path: '/', tooltip: 'Реестр всех СИ предприятия' },
+  { text: 'Списание', icon: <DeleteSweepIcon />, path: '/writeoff', tooltip: 'Процедуры списания СИ' },
+  { text: 'Шаблоны', icon: <DescriptionIcon />, path: '/templates', tooltip: 'Шаблоны актов списания' },
+  { text: 'Бэкапы', icon: <BackupIcon />, path: '/backups', tooltip: 'Резервные копии БД' },
+  { text: 'Настройки', icon: <SettingsIcon />, path: '/settings', tooltip: 'Пользователи, справочники, импорт' },
 ]
 
 export default function Layout() {
-  const [drawerOpen, setDrawerOpen] = useState(false)
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -43,9 +37,6 @@ export default function Layout() {
     <Box sx={{ display: 'flex' }}>
       <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
         <Toolbar>
-          <IconButton color="inherit" edge="start" onClick={() => setDrawerOpen(!drawerOpen)} sx={{ mr: 2 }}>
-            <MenuIcon />
-          </IconButton>
           <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
             ПоТролога
           </Typography>
@@ -60,27 +51,27 @@ export default function Layout() {
       </AppBar>
 
       <Drawer
-        variant="persistent"
-        open={drawerOpen}
-        sx={{ width: DRAWER_WIDTH, '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box' } }}
+        variant="permanent"
+        sx={{ width: DRAWER_WIDTH, flexShrink: 0, '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box' } }}
       >
         <Toolbar />
         <Divider />
         <List>
           {menuItems.map((item) => (
-            <ListItemButton
-              key={item.path}
-              selected={location.pathname === item.path}
-              onClick={() => navigate(item.path)}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
+            <Tooltip key={item.path} title={item.tooltip} placement="right" arrow>
+              <ListItemButton
+                selected={location.pathname === item.path}
+                onClick={() => navigate(item.path)}
+              >
+                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemText primary={item.text} />
+              </ListItemButton>
+            </Tooltip>
           ))}
         </List>
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, p: 3, ml: drawerOpen ? `${DRAWER_WIDTH}px` : 0, transition: 'margin 0.2s' }}>
+      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
         <Toolbar />
         <Outlet />
       </Box>

@@ -69,7 +69,7 @@ export default function TemplateEditorPage() {
       </Box>
 
       <Alert severity="info" sx={{ mb: 2 }}>
-        Переменные шаблона: {'{{procedureNumber}}'} {'{{date}}'} {'{{instrumentTable}}'} {'{{responsiblePerson}}'} {'{{approvals}}'}
+        Переменные шаблона: {'{{procedureNumber}}'} {'{{date}}'} {'{{reason}}'} {'{{instrumentTable}}'}
       </Alert>
 
       <Paper>

@@ -6,28 +6,25 @@ import {
   List, ListItem, ListItemText,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
-import SendIcon from '@mui/icons-material/Send'
 import UploadIcon from '@mui/icons-material/Upload'
 import PrintIcon from '@mui/icons-material/Print'
 import CancelIcon from '@mui/icons-material/Cancel'
-import CheckIcon from '@mui/icons-material/Check'
-import CloseIcon from '@mui/icons-material/Close'
 import { writeoffApi, instrumentApi, templateApi, generateActUrl } from '../services/api'
 
-// Шаги workflow
-const STEPS = ['Черновик', 'Согласование', 'Ожидание скана', 'Завершено']
+// Шаги workflow (без согласования)
+const STEPS = ['Черновик', 'Печать акта', 'Загрузка скана', 'Завершено']
 
 const statusStep: Record<string, number> = {
-  DRAFT: 0, IN_APPROVAL: 1, WAITING_SCAN: 2, COMPLETED: 3, CANCELLED: -1,
+  DRAFT: 0, WAITING_SCAN: 1, COMPLETED: 3, CANCELLED: -1,
 }
 
 const statusColors: Record<string, 'default' | 'primary' | 'warning' | 'success' | 'error'> = {
-  DRAFT: 'default', IN_APPROVAL: 'primary', WAITING_SCAN: 'warning',
+  DRAFT: 'default', WAITING_SCAN: 'warning',
   COMPLETED: 'success', CANCELLED: 'error',
 }
 
 const statusLabels: Record<string, string> = {
-  DRAFT: 'Черновик', IN_APPROVAL: 'На согласовании', WAITING_SCAN: 'Ожидание скана',
+  DRAFT: 'Черновик', WAITING_SCAN: 'Ожидание скана',
   COMPLETED: 'Завершено', CANCELLED: 'Отменено',
 }
 
@@ -40,14 +37,8 @@ export default function WriteoffPage() {
   // Диалог создания
   const [createDlg, setCreateDlg] = useState(false)
   const [reason, setReason] = useState('')
-  const [responsible, setResponsible] = useState('')
   const [instruments, setInstruments] = useState<any[]>([])
   const [selectedIds, setSelectedIds] = useState<number[]>([])
-
-  // Диалог согласования
-  const [approvalDlg, setApprovalDlg] = useState(false)
-  const [approverName, setApproverName] = useState('')
-  const [approverPosition, setApproverPosition] = useState('')
 
   // Шаблоны
   const [templates, setTemplates] = useState<any[]>([])
@@ -63,7 +54,6 @@ export default function WriteoffPage() {
     setInstruments(res.items || [])
     setSelectedIds([])
     setReason('')
-    setResponsible('')
     setCreateDlg(true)
   }
 
@@ -73,7 +63,7 @@ export default function WriteoffPage() {
       setError('Укажите причину и выберите хотя бы одно СИ')
       return
     }
-    await writeoffApi.create({ reason, responsiblePerson: responsible, instrumentIds: selectedIds })
+    await writeoffApi.create({ reason, instrumentIds: selectedIds })
     setCreateDlg(false)
     loadProcedures()
   }
@@ -83,27 +73,6 @@ export default function WriteoffPage() {
     setSelected(res.data)
     templateApi.getAll().then((r) => setTemplates(r.data || []))
     setTab(1)
-  }
-
-  const handleSendToApproval = async () => {
-    await writeoffApi.sendToApproval(selected.id)
-    openDetail(selected)
-    loadProcedures()
-  }
-
-  const handleAddApproval = async () => {
-    if (!approverName || !approverPosition) return
-    await writeoffApi.addApproval(selected.id, { approverName, approverPosition })
-    setApprovalDlg(false)
-    setApproverName('')
-    setApproverPosition('')
-    openDetail(selected)
-  }
-
-  const handleApprove = async (approvalId: number, approved: boolean) => {
-    await writeoffApi.approve(approvalId, approved)
-    openDetail(selected)
-    loadProcedures()
   }
 
   const handleUploadScan = async () => {
@@ -140,6 +109,13 @@ export default function WriteoffPage() {
     a.download = `act_${selected.procedureNumber}.txt`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  // Перевод в статус "Ожидание скана" (печать/экспорт выполнена)
+  const handleSendToScan = async () => {
+    await writeoffApi.sendToApproval(selected.id)
+    openDetail(selected)
+    loadProcedures()
   }
 
   return (
@@ -211,8 +187,7 @@ export default function WriteoffPage() {
           <Paper sx={{ p: 2, mb: 2 }}>
             <Typography variant="subtitle1"><b>Номер:</b> {selected.procedureNumber}</Typography>
             <Typography variant="subtitle1"><b>Причина:</b> {selected.reason}</Typography>
-            <Typography variant="subtitle1"><b>Ответственный:</b> {selected.responsiblePerson || '—'}</Typography>
-            <Typography variant="subtitle1"><b>Статус:</b> {statusLabels[selected.status]}</Typography>
+            <Typography variant="subtitle1"><b>Статус:</b> {statusLabels[selected.status] || selected.status}</Typography>
           </Paper>
 
           {/* Позиции */}
@@ -236,62 +211,15 @@ export default function WriteoffPage() {
             </Table>
           </Paper>
 
-          {/* Согласования */}
-          <Typography variant="h6" sx={{ mb: 1 }}>Согласования</Typography>
-          <Paper sx={{ mb: 2 }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>ФИО</TableCell>
-                  <TableCell>Должность</TableCell>
-                  <TableCell>Статус</TableCell>
-                  <TableCell>Комментарий</TableCell>
-                  <TableCell>Дата</TableCell>
-                  <TableCell>Действия</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(selected.approvals || []).map((a: any) => (
-                  <TableRow key={a.id}>
-                    <TableCell>{a.approverName}</TableCell>
-                    <TableCell>{a.approverPosition}</TableCell>
-                    <TableCell>
-                      {a.approvedAt
-                        ? <Chip label={a.approved ? 'Утверждено' : 'Отклонено'} size="small" color={a.approved ? 'success' : 'error'} />
-                        : <Chip label="Ожидание" size="small" />}
-                    </TableCell>
-                    <TableCell>{a.comment || '—'}</TableCell>
-                    <TableCell>{a.approvedAt ? new Date(a.approvedAt).toLocaleDateString('ru-RU') : '—'}</TableCell>
-                    <TableCell>
-                      {!a.approvedAt && selected.status === 'IN_APPROVAL' && (
-                        <>
-                          <IconButton size="small" color="success" onClick={() => handleApprove(a.id, true)}>
-                            <CheckIcon />
-                          </IconButton>
-                          <IconButton size="small" color="error" onClick={() => handleApprove(a.id, false)}>
-                            <CloseIcon />
-                          </IconButton>
-                        </>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {(selected.approvals || []).length === 0 && (
-                  <TableRow><TableCell colSpan={6} align="center">Нет согласований</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </Paper>
-
           {/* Шаблоны актов */}
           {templates.length > 0 && (
             <>
-              <Typography variant="h6" sx={{ mb: 1 }}>Шаблоны актов</Typography>
+              <Typography variant="h6" sx={{ mb: 1 }}>Печать акта из шаблона</Typography>
               <Paper sx={{ mb: 2 }}>
                 <List dense>
                   {templates.map((t: any) => (
                     <ListItem key={t.filename} secondaryAction={
-                      <IconButton edge="end" onClick={() => handleGenerateAct(t.filename)}>
+                      <IconButton edge="end" onClick={() => handleGenerateAct(t.filename)} title="Экспорт акта">
                         <PrintIcon />
                       </IconButton>
                     }>
@@ -306,22 +234,16 @@ export default function WriteoffPage() {
           {/* Действия */}
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {selected.status === 'DRAFT' && (
-              <>
-                <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setApprovalDlg(true)}>
-                  Добавить согласующего
-                </Button>
-                <Button variant="contained" startIcon={<SendIcon />} onClick={handleSendToApproval}
-                  disabled={(selected.approvals || []).length === 0}>
-                  Отправить на согласование
-                </Button>
-              </>
+              <Button variant="contained" onClick={handleSendToScan}>
+                Акт напечатан, ожидать скан
+              </Button>
             )}
             {selected.status === 'WAITING_SCAN' && (
               <Button variant="contained" startIcon={<UploadIcon />} onClick={handleUploadScan}>
-                Загрузить скан акта
+                Загрузить скан подписанного акта
               </Button>
             )}
-            {['DRAFT', 'IN_APPROVAL'].includes(selected.status) && (
+            {selected.status === 'DRAFT' && (
               <Button variant="outlined" color="error" startIcon={<CancelIcon />} onClick={handleCancel}>
                 Отменить
               </Button>
@@ -337,8 +259,6 @@ export default function WriteoffPage() {
           {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
           <TextField label="Причина списания" fullWidth margin="dense" multiline rows={2}
             value={reason} onChange={(e) => setReason(e.target.value)} />
-          <TextField label="Ответственное лицо" fullWidth margin="dense"
-            value={responsible} onChange={(e) => setResponsible(e.target.value)} />
           <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>Выберите СИ для списания:</Typography>
           <Paper variant="outlined" sx={{ maxHeight: 250, overflow: 'auto' }}>
             <Table size="small">
@@ -370,21 +290,6 @@ export default function WriteoffPage() {
         <DialogActions>
           <Button onClick={() => setCreateDlg(false)}>Отмена</Button>
           <Button variant="contained" onClick={handleCreate}>Создать</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Диалог добавления согласующего */}
-      <Dialog open={approvalDlg} onClose={() => setApprovalDlg(false)}>
-        <DialogTitle>Добавить согласующего</DialogTitle>
-        <DialogContent sx={{ pt: '8px !important' }}>
-          <TextField label="ФИО" fullWidth margin="dense"
-            value={approverName} onChange={(e) => setApproverName(e.target.value)} />
-          <TextField label="Должность" fullWidth margin="dense"
-            value={approverPosition} onChange={(e) => setApproverPosition(e.target.value)} />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setApprovalDlg(false)}>Отмена</Button>
-          <Button variant="contained" onClick={handleAddApproval}>Добавить</Button>
         </DialogActions>
       </Dialog>
     </Box>

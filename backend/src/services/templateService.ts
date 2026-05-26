@@ -3,7 +3,7 @@ import path from 'path';
 import { config } from '../config/env';
 
 // Сервис шаблонов актов списания
-// Шаблонные переменные: {{procedureNumber}} {{date}} {{instrumentTable}} {{responsiblePerson}} {{approvals}}
+// Шаблонные переменные: {{procedureNumber}} {{date}} {{reason}} {{instrumentTable}}
 export class TemplateService {
   private templatesDir = path.resolve(config.documentsPath, '../templates');
 

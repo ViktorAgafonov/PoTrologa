@@ -25,12 +25,12 @@ export class ReportService {
 
     const byOrg = await this.repo
       .createQueryBuilder('i')
-      .select('org.factory', 'factory')
-      .addSelect('org.workshop', 'workshop')
+      .select('org.workshop', 'workshop')
+      .addSelect('org.section', 'section')
       .addSelect('COUNT(*)', 'count')
       .leftJoin('i.organization', 'org')
-      .groupBy('org.factory')
-      .addGroupBy('org.workshop')
+      .groupBy('org.workshop')
+      .addGroupBy('org.section')
       .getRawMany();
 
     return { total, byStatus, byType, byOrg };
@@ -48,15 +48,13 @@ export class ReportService {
   async byOrganization() {
     return this.repo
       .createQueryBuilder('i')
-      .select('org.factory', 'factory')
-      .addSelect('org.workshop', 'workshop')
+      .select('org.workshop', 'workshop')
       .addSelect('org.section', 'section')
       .addSelect('COUNT(*)', 'count')
       .addSelect('SUM(CASE WHEN i.status = :expired THEN 1 ELSE 0 END)', 'expiredCount')
       .leftJoin('i.organization', 'org')
       .setParameter('expired', InstrumentStatus.EXPIRED)
-      .groupBy('org.factory')
-      .addGroupBy('org.workshop')
+      .groupBy('org.workshop')
       .addGroupBy('org.section')
       .getRawMany();
   }

@@ -50,24 +50,6 @@ export class WriteoffController {
     } catch (err) { next(err); }
   }
 
-  // POST /api/v1/writeoff-procedures/:id/approvals — добавить согласующего
-  async addApproval(req: Request, res: Response, next: NextFunction) {
-    try {
-      const approval = await service.addApproval(Number(req.params.id), req.body);
-      res.status(201).json({ success: true, data: approval });
-    } catch (err) { next(err); }
-  }
-
-  // POST /api/v1/writeoff-procedures/approvals/:id/approve — утвердить/отклонить
-  async approve(req: Request, res: Response, next: NextFunction) {
-    try {
-      await service.approve(Number(req.params.id), req.body.approved, req.body.comment);
-      const user = req.user as any;
-      await audit.log(user?.id, 'WRITEOFF_APPROVE', 'writeoff_approval', Number(req.params.id));
-      res.json({ success: true });
-    } catch (err) { next(err); }
-  }
-
   // POST /api/v1/writeoff-procedures/:id/upload-scan — загрузить скан и завершить
   async uploadScan(req: Request, res: Response, next: NextFunction) {
     try {
@@ -100,16 +82,11 @@ export class WriteoffController {
       const instrumentTable = instruments
         .map((inst, idx) => `${idx + 1}. ${inst.inventoryNumber} — ${inst.name} (${inst.model || ''}) S/N: ${inst.serialNumber || ''}`)
         .join('\n');
-      const approvals = (proc.approvals || [])
-        .map((a) => `${a.approverPosition}: ${a.approverName}`)
-        .join('\n');
-
       const rendered = tmplService.render(content, {
         procedureNumber: proc.procedureNumber,
         date: new Date().toLocaleDateString('ru-RU'),
+        reason: proc.reason || '',
         instrumentTable,
-        responsiblePerson: proc.responsiblePerson || '',
-        approvals,
       });
 
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');

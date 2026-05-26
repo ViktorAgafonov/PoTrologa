@@ -4,7 +4,6 @@ import { User } from '../entities/User';
 import { InstrumentType } from '../entities/InstrumentType';
 import { InstrumentSubtype } from '../entities/InstrumentSubtype';
 import { OrganizationLocation } from '../entities/OrganizationLocation';
-import { ResponsiblePerson } from '../entities/ResponsiblePerson';
 import { Instrument } from '../entities/Instrument';
 import { VerificationHistory } from '../entities/VerificationHistory';
 import { Repair } from '../entities/Repair';
@@ -27,7 +26,6 @@ export const AppDataSource = new DataSource({
     InstrumentType,
     InstrumentSubtype,
     OrganizationLocation,
-    ResponsiblePerson,
     Instrument,
     VerificationHistory,
     Repair,

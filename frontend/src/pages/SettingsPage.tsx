@@ -3,11 +3,25 @@ import {
   Box, Typography, Tabs, Tab, Table, TableHead, TableRow, TableCell,
   TableBody, Paper, Button, TextField, Dialog, DialogTitle, DialogContent,
   DialogActions, Select, MenuItem, FormControl, InputLabel, IconButton, Alert,
+  Stepper, Step, StepLabel,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
-import { userApi, referenceApi } from '../services/api'
+import UploadFileIcon from '@mui/icons-material/UploadFile'
+import { userApi, referenceApi, importApi } from '../services/api'
 import { useAuth } from '../hooks/useAuth'
+
+// Системные поля для маппинга импорта
+const SYSTEM_FIELDS = [
+  { key: 'name', label: 'Название' },
+  { key: 'model', label: 'Модель' },
+  { key: 'serialNumber', label: 'Серийный номер' },
+  { key: 'inventoryNumber', label: 'Инвентарный номер' },
+  { key: 'manufacturer', label: 'Производитель' },
+  { key: 'status', label: 'Статус' },
+  { key: 'verificationIntervalMonths', label: 'Интервал поверки (мес.)' },
+  { key: 'startDate', label: 'Дата ввода в эксплуатацию' },
+]
 
 export default function SettingsPage() {
   const { user } = useAuth()
@@ -26,12 +40,15 @@ export default function SettingsPage() {
   // Участки
   const [orgs, setOrgs] = useState<any[]>([])
   const [orgDlg, setOrgDlg] = useState(false)
-  const [newOrg, setNewOrg] = useState({ factory: '', workshop: '', section: '' })
+  const [newOrg, setNewOrg] = useState({ workshop: '', section: '' })
 
-  // Ответственные
-  const [resps, setResps] = useState<any[]>([])
-  const [respDlg, setRespDlg] = useState(false)
-  const [newResp, setNewResp] = useState({ fullName: '', position: '' })
+  // Импорт
+  const [importStep, setImportStep] = useState(0)
+  const [importId, setImportId] = useState('')
+  const [importHeaders, setImportHeaders] = useState<string[]>([])
+  const [importMapping, setImportMapping] = useState<Record<string, string>>({})
+  const [importPreview, setImportPreview] = useState<any>(null)
+  const [importResult, setImportResult] = useState<any>(null)
 
   const [error, setError] = useState('')
 
@@ -41,7 +58,6 @@ export default function SettingsPage() {
     }
     referenceApi.getTypes().then((res) => setTypes(res.data || []))
     referenceApi.getOrganizations().then((res) => setOrgs(res.data || []))
-    referenceApi.getResponsibles().then((res) => setResps(res.data || []))
   }
 
   useEffect(() => { loadAll() }, [user])
@@ -63,15 +79,40 @@ export default function SettingsPage() {
   const handleCreateOrg = async () => {
     await referenceApi.createOrganization(newOrg)
     setOrgDlg(false)
-    setNewOrg({ factory: '', workshop: '', section: '' })
+    setNewOrg({ workshop: '', section: '' })
     loadAll()
   }
 
-  const handleCreateResp = async () => {
-    await referenceApi.createResponsible(newResp)
-    setRespDlg(false)
-    setNewResp({ fullName: '', position: '' })
-    loadAll()
+  // Импорт — загрузка файла
+  const handleImportUpload = async (file: File) => {
+    try {
+      setError('')
+      const res = await importApi.upload(file)
+      setImportId(res.importId || res.data?.importId)
+      setImportHeaders(res.headers || res.data?.headers || [])
+      setImportStep(1)
+    } catch (e: any) { setError(e.message) }
+  }
+
+  // Импорт — отправка маппинга и получение превью
+  const handleImportMapping = async () => {
+    try {
+      setError('')
+      await importApi.updateMapping(importId, importMapping)
+      const res = await importApi.preview(importId)
+      setImportPreview(res.data || res)
+      setImportStep(2)
+    } catch (e: any) { setError(e.message) }
+  }
+
+  // Импорт — коммит
+  const handleImportCommit = async () => {
+    try {
+      setError('')
+      const res = await importApi.commit(importId)
+      setImportResult(res.data || res)
+      setImportStep(3)
+    } catch (e: any) { setError(e.message) }
   }
 
   return (
@@ -82,7 +123,7 @@ export default function SettingsPage() {
         <Tab label="Пользователи" disabled={user?.role !== 'ADMIN'} />
         <Tab label="Типы СИ" />
         <Tab label="Участки" />
-        <Tab label="Ответственные" />
+        <Tab label="Импорт" />
       </Tabs>
 
       {/* --- Пользователи --- */}
@@ -179,7 +220,7 @@ export default function SettingsPage() {
                   </TableRow>
                 ))}
                 {types.length === 0 && (
-                  <TableRow><TableCell colSpan={2} align="center">Нет типов</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={3} align="center">Нет типов</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -210,7 +251,6 @@ export default function SettingsPage() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Завод</TableCell>
                   <TableCell>Цех</TableCell>
                   <TableCell>Участок</TableCell>
                   <TableCell width={60}></TableCell>
@@ -219,12 +259,11 @@ export default function SettingsPage() {
               <TableBody>
                 {orgs.map((o: any) => (
                   <TableRow key={o.id}>
-                    <TableCell>{o.factory}</TableCell>
-                    <TableCell>{o.workshop || '—'}</TableCell>
+                    <TableCell>{o.workshop}</TableCell>
                     <TableCell>{o.section || '—'}</TableCell>
                     <TableCell>
                       <IconButton size="small" color="error" onClick={async () => {
-                        if (!confirm(`Удалить участок «${o.factory}»?`)) return
+                        if (!confirm(`Удалить участок «${o.workshop}»?`)) return
                         try { setError(''); await referenceApi.deleteOrganization(o.id); loadAll() }
                         catch (e: any) { setError(e.message) }
                       }}><DeleteIcon fontSize="small" /></IconButton>
@@ -240,8 +279,6 @@ export default function SettingsPage() {
           <Dialog open={orgDlg} onClose={() => setOrgDlg(false)}>
             <DialogTitle>Новый участок</DialogTitle>
             <DialogContent sx={{ pt: '8px !important' }}>
-              <TextField label="Завод" fullWidth margin="dense"
-                value={newOrg.factory} onChange={(e) => setNewOrg({ ...newOrg, factory: e.target.value })} />
               <TextField label="Цех" fullWidth margin="dense"
                 value={newOrg.workshop} onChange={(e) => setNewOrg({ ...newOrg, workshop: e.target.value })} />
               <TextField label="Участок" fullWidth margin="dense"
@@ -255,55 +292,87 @@ export default function SettingsPage() {
         </>
       )}
 
-      {/* --- Ответственные лица --- */}
+      {/* --- Импорт --- */}
       {tab === 3 && (
-        <>
-          <Box sx={{ mb: 2 }}>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setRespDlg(true)}>Добавить ответственного</Button>
-          </Box>
-          <Paper>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>ФИО</TableCell>
-                  <TableCell>Должность</TableCell>
-                  <TableCell width={60}></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {resps.map((r: any) => (
-                  <TableRow key={r.id}>
-                    <TableCell>{r.fullName}</TableCell>
-                    <TableCell>{r.position || '—'}</TableCell>
-                    <TableCell>
-                      <IconButton size="small" color="error" onClick={async () => {
-                        if (!confirm(`Удалить ответственного «${r.fullName}»?`)) return
-                        try { setError(''); await referenceApi.deleteResponsible(r.id); loadAll() }
-                        catch (e: any) { setError(e.message) }
-                      }}><DeleteIcon fontSize="small" /></IconButton>
-                    </TableCell>
+        <Box>
+          <Stepper activeStep={importStep} sx={{ mb: 3 }}>
+            <Step><StepLabel>Загрузка файла</StepLabel></Step>
+            <Step><StepLabel>Маппинг колонок</StepLabel></Step>
+            <Step><StepLabel>Предпросмотр</StepLabel></Step>
+            <Step><StepLabel>Результат</StepLabel></Step>
+          </Stepper>
+
+          {importStep === 0 && (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Button variant="contained" startIcon={<UploadFileIcon />} component="label">
+                Выбрать XLSX-файл
+                <input type="file" hidden accept=".xlsx,.xls" onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) handleImportUpload(f)
+                }} />
+              </Button>
+              <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                Поддерживаются файлы .xlsx и .xls
+              </Typography>
+            </Box>
+          )}
+
+          {importStep === 1 && (
+            <Box>
+              <Typography variant="subtitle1" gutterBottom>Сопоставьте колонки файла с полями системы:</Typography>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Колонка файла</TableCell>
+                    <TableCell>Поле системы</TableCell>
                   </TableRow>
-                ))}
-                {resps.length === 0 && (
-                  <TableRow><TableCell colSpan={2} align="center">Нет ответственных</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </Paper>
-          <Dialog open={respDlg} onClose={() => setRespDlg(false)}>
-            <DialogTitle>Новый ответственный</DialogTitle>
-            <DialogContent sx={{ pt: '8px !important' }}>
-              <TextField label="ФИО" fullWidth margin="dense"
-                value={newResp.fullName} onChange={(e) => setNewResp({ ...newResp, fullName: e.target.value })} />
-              <TextField label="Должность" fullWidth margin="dense"
-                value={newResp.position} onChange={(e) => setNewResp({ ...newResp, position: e.target.value })} />
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setRespDlg(false)}>Отмена</Button>
-              <Button variant="contained" onClick={handleCreateResp}>Создать</Button>
-            </DialogActions>
-          </Dialog>
-        </>
+                </TableHead>
+                <TableBody>
+                  {importHeaders.map((h) => (
+                    <TableRow key={h}>
+                      <TableCell>{h}</TableCell>
+                      <TableCell>
+                        <FormControl size="small" fullWidth>
+                          <Select value={importMapping[h] || ''} onChange={(e) => setImportMapping({ ...importMapping, [h]: e.target.value })}>
+                            <MenuItem value="">— пропустить —</MenuItem>
+                            {SYSTEM_FIELDS.map((f) => <MenuItem key={f.key} value={f.key}>{f.label}</MenuItem>)}
+                          </Select>
+                        </FormControl>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                <Button onClick={() => setImportStep(0)}>Назад</Button>
+                <Button variant="contained" onClick={handleImportMapping}>Далее</Button>
+              </Box>
+            </Box>
+          )}
+
+          {importStep === 2 && (
+            <Box>
+              <Typography variant="subtitle1" gutterBottom>
+                Предпросмотр: {importPreview?.newCount ?? 0} новых, {importPreview?.conflictCount ?? 0} конфликтов
+              </Typography>
+              <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                <Button onClick={() => setImportStep(1)}>Назад</Button>
+                <Button variant="contained" color="success" onClick={handleImportCommit}>Импортировать</Button>
+              </Box>
+            </Box>
+          )}
+
+          {importStep === 3 && (
+            <Box>
+              <Alert severity="success" sx={{ mb: 2 }}>
+                Импорт завершён. Создано: {importResult?.created ?? 0}, обновлено: {importResult?.updated ?? 0}, ошибок: {importResult?.errors ?? 0}
+              </Alert>
+              <Button variant="outlined" onClick={() => { setImportStep(0); setImportId(''); setImportHeaders([]); setImportMapping({}); setImportPreview(null); setImportResult(null) }}>
+                Новый импорт
+              </Button>
+            </Box>
+          )}
+        </Box>
       )}
     </Box>
   )

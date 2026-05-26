@@ -91,11 +91,4 @@ export class InstrumentController {
     } catch (err) { next(err); }
   }
 
-  // GET /api/v1/instruments/dashboard
-  async dashboard(_req: Request, res: Response, next: NextFunction) {
-    try {
-      const stats = await service.getDashboardStats();
-      res.json({ success: true, data: stats });
-    } catch (err) { next(err); }
-  }
 }

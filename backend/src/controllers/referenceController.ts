@@ -3,10 +3,9 @@ import { AppDataSource } from '../config/database';
 import { InstrumentType } from '../entities/InstrumentType';
 import { InstrumentSubtype } from '../entities/InstrumentSubtype';
 import { OrganizationLocation } from '../entities/OrganizationLocation';
-import { ResponsiblePerson } from '../entities/ResponsiblePerson';
 import { Instrument } from '../entities/Instrument';
 
-// Контроллер справочников (типы, подтипы, организации, ответственные)
+// Контроллер справочников (типы, подтипы, организации)
 export class ReferenceController {
   // GET /api/v1/references/types
   async getTypes(_req: Request, res: Response, next: NextFunction) {
@@ -54,23 +53,6 @@ export class ReferenceController {
     } catch (err) { next(err); }
   }
 
-  // GET /api/v1/references/responsibles
-  async getResponsibles(_req: Request, res: Response, next: NextFunction) {
-    try {
-      const items = await AppDataSource.getRepository(ResponsiblePerson).find();
-      res.json({ success: true, data: items });
-    } catch (err) { next(err); }
-  }
-
-  // POST /api/v1/references/responsibles
-  async createResponsible(req: Request, res: Response, next: NextFunction) {
-    try {
-      const repo = AppDataSource.getRepository(ResponsiblePerson);
-      const item = repo.create(req.body);
-      const saved = await repo.save(item);
-      res.status(201).json({ success: true, data: saved });
-    } catch (err) { next(err); }
-  }
 
   // DELETE /api/v1/references/types/:id
   async deleteType(req: Request, res: Response, next: NextFunction) {
@@ -101,17 +83,4 @@ export class ReferenceController {
     } catch (err) { next(err); }
   }
 
-  // DELETE /api/v1/references/responsibles/:id
-  async deleteResponsible(req: Request, res: Response, next: NextFunction) {
-    try {
-      const id = Number(req.params.id);
-      const used = await AppDataSource.getRepository(Instrument).count({ where: { responsibleId: id } });
-      if (used > 0) {
-        res.status(400).json({ success: false, message: `Ответственный привязан к ${used} СИ, удаление невозможно` });
-        return;
-      }
-      await AppDataSource.getRepository(ResponsiblePerson).delete(id);
-      res.json({ success: true });
-    } catch (err) { next(err); }
-  }
 }

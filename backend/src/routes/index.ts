@@ -39,9 +39,6 @@ router.post('/auth/login', (req, res, next) => auth.login(req, res, next));
 router.post('/auth/logout', (req, res) => auth.logout(req, res));
 router.get('/auth/me', (req, res) => auth.me(req, res));
 
-// --- Дашборд ---
-router.get('/instruments/dashboard', isAuthenticated, (req, res, next) => instruments.dashboard(req, res, next));
-
 // --- Средства измерения ---
 router.get('/instruments', isAuthenticated, (req, res, next) => instruments.getAll(req, res, next));
 // Экспорт XLSX (до :id чтобы не перехватывался)
@@ -51,7 +48,7 @@ router.get('/instruments/export', hasRole(UserRole.ADMIN, UserRole.METROLOGIST),
     const { AppDataSource } = await import('../config/database');
     const { Instrument } = await import('../entities/Instrument');
     const repo = AppDataSource.getRepository(Instrument);
-    const items = await repo.find({ relations: ['type', 'organization', 'responsible'] });
+    const items = await repo.find({ relations: ['type', 'organization'] });
     const rows = items.map((i) => ({
       'Инв. №': i.inventoryNumber,
       'Название': i.name,
@@ -59,8 +56,7 @@ router.get('/instruments/export', hasRole(UserRole.ADMIN, UserRole.METROLOGIST),
       'Серийный №': i.serialNumber,
       'Производитель': i.manufacturer,
       'Тип': i.type?.name || '',
-      'Участок': i.organization ? [i.organization.factory, i.organization.workshop, i.organization.section].filter(Boolean).join(' → ') : '',
-      'Ответственный': i.responsible?.fullName || i.responsible?.position || '',
+      'Участок': i.organization ? [i.organization.workshop, i.organization.section].filter(Boolean).join(' → ') : '',
       'Статус': i.status,
       'Интервал поверки (мес)': i.verificationIntervalMonths,
     }));
@@ -128,19 +124,14 @@ router.post('/references/types', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), 
 router.post('/references/subtypes', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => refs.createSubtype(req, res, next));
 router.get('/references/organizations', isAuthenticated, (req, res, next) => refs.getOrganizations(req, res, next));
 router.post('/references/organizations', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => refs.createOrganization(req, res, next));
-router.get('/references/responsibles', isAuthenticated, (req, res, next) => refs.getResponsibles(req, res, next));
-router.post('/references/responsibles', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => refs.createResponsible(req, res, next));
 router.delete('/references/types/:id', hasRole(UserRole.ADMIN), (req, res, next) => refs.deleteType(req, res, next));
 router.delete('/references/organizations/:id', hasRole(UserRole.ADMIN), (req, res, next) => refs.deleteOrganization(req, res, next));
-router.delete('/references/responsibles/:id', hasRole(UserRole.ADMIN), (req, res, next) => refs.deleteResponsible(req, res, next));
 
 // --- Процедуры списания ---
 router.post('/writeoff-procedures', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => writeoffs.create(req, res, next));
 router.get('/writeoff-procedures', isAuthenticated, (req, res, next) => writeoffs.getAll(req, res, next));
 router.get('/writeoff-procedures/:id', isAuthenticated, (req, res, next) => writeoffs.getById(req, res, next));
 router.post('/writeoff-procedures/:id/send-to-approval', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => writeoffs.sendToApproval(req, res, next));
-router.post('/writeoff-procedures/:id/approvals', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => writeoffs.addApproval(req, res, next));
-router.post('/writeoff-procedures/approvals/:id/approve', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => writeoffs.approve(req, res, next));
 router.post('/writeoff-procedures/:id/upload-scan', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => writeoffs.uploadScan(req, res, next));
 router.post('/writeoff-procedures/:id/generate-act', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => writeoffs.generateAct(req, res, next));
 router.post('/writeoff-procedures/:id/cancel', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => writeoffs.cancel(req, res, next));

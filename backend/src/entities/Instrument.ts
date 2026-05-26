@@ -11,7 +11,6 @@ import {
 import { InstrumentType } from './InstrumentType';
 import { InstrumentSubtype } from './InstrumentSubtype';
 import { OrganizationLocation } from './OrganizationLocation';
-import { ResponsiblePerson } from './ResponsiblePerson';
 import { VerificationHistory } from './VerificationHistory';
 import { Repair } from './Repair';
 import { Document } from './Document';
@@ -59,11 +58,15 @@ export class Instrument {
   @Column({ name: 'organization_id', nullable: true })
   organizationId!: number;
 
-  @Column({ name: 'responsible_id', nullable: true })
-  responsibleId!: number;
 
   @Column({ name: 'verification_interval_months', nullable: true })
   verificationIntervalMonths!: number;
+
+  @Column({ name: 'last_verification_date', nullable: true })
+  lastVerificationDate!: string;
+
+  @Column({ name: 'next_verification_date', nullable: true })
+  nextVerificationDate!: string;
 
   @Column({ type: 'varchar', default: InstrumentStatus.ACTIVE })
   status!: InstrumentStatus;
@@ -87,9 +90,6 @@ export class Instrument {
   @JoinColumn({ name: 'organization_id' })
   organization!: OrganizationLocation;
 
-  @ManyToOne(() => ResponsiblePerson, { nullable: true })
-  @JoinColumn({ name: 'responsible_id' })
-  responsible!: ResponsiblePerson;
 
   @OneToMany(() => VerificationHistory, (v) => v.instrument)
   verifications!: VerificationHistory[];

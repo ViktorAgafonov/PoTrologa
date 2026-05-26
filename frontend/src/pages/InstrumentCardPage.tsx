@@ -17,7 +17,22 @@ import { instrumentApi, referenceApi, documentApi, auditApi } from '../services/
 const emptyForm = {
   name: '', model: '', serialNumber: '', manufacturer: '',
   inventoryNumber: '', verificationIntervalMonths: '',
-  typeId: '', organizationId: '', responsibleId: '', startDate: '',
+  typeId: '', organizationId: '', startDate: '',
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  CREATE: 'Добавление',
+  UPDATE: 'Изменение',
+  VERIFICATION: 'Поверка',
+  REPAIR: 'Ремонт',
+  IMPORT: 'Импорт',
+  UPLOAD_DOC: 'Загрузка документа',
+  DELETE_DOC: 'Удаление документа',
+  WRITEOFF_CREATE: 'Создание списания',
+  WRITEOFF_SEND_APPROVAL: 'Отправка на согласование',
+  WRITEOFF_APPROVE: 'Согласование',
+  WRITEOFF_COMPLETE: 'Завершение списания',
+  WRITEOFF_CANCEL: 'Отмена списания',
 }
 
 export default function InstrumentCardPage() {
@@ -32,7 +47,6 @@ export default function InstrumentCardPage() {
   // Справочники для выпадающих списков
   const [types, setTypes] = useState<any[]>([])
   const [organizations, setOrganizations] = useState<any[]>([])
-  const [responsibles, setResponsibles] = useState<any[]>([])
   // Документы
   const [documents, setDocuments] = useState<any[]>([])
   // История (AuditLog)
@@ -64,7 +78,6 @@ export default function InstrumentCardPage() {
   useEffect(() => {
     referenceApi.getTypes().then((res) => setTypes(res.data || []))
     referenceApi.getOrganizations().then((res) => setOrganizations(res.data || []))
-    referenceApi.getResponsibles().then((res) => setResponsibles(res.data || []))
   }, [])
 
   useEffect(() => {
@@ -81,7 +94,6 @@ export default function InstrumentCardPage() {
           verificationIntervalMonths: String(d.verificationIntervalMonths || ''),
           typeId: String(d.typeId || ''),
           organizationId: String(d.organizationId || ''),
-          responsibleId: String(d.responsibleId || ''),
         })
         setLoading(false)
       })
@@ -110,15 +122,14 @@ export default function InstrumentCardPage() {
         verificationIntervalMonths: form.verificationIntervalMonths ? Number(form.verificationIntervalMonths) : null,
         typeId: form.typeId ? Number(form.typeId) : null,
         organizationId: form.organizationId ? Number(form.organizationId) : null,
-        responsibleId: form.responsibleId ? Number(form.responsibleId) : null,
       }
       if (isNew) {
         if (!autoInvNumber && form.inventoryNumber) payload.inventoryNumber = form.inventoryNumber
         await instrumentApi.create(payload)
-        navigate('/instruments', { replace: true })
+        navigate('/', { replace: true })
       } else {
         await instrumentApi.update(Number(id), payload)
-        navigate('/instruments', { replace: true })
+        navigate('/', { replace: true })
       }
     } catch (err: any) {
       setError(err.message || 'Ошибка сохранения')
@@ -129,7 +140,7 @@ export default function InstrumentCardPage() {
 
   return (
     <Box>
-      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/instruments')} sx={{ mb: 2 }}>
+      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/')} sx={{ mb: 2 }}>
         Назад
       </Button>
       <Typography variant="h5" gutterBottom>
@@ -197,16 +208,7 @@ export default function InstrumentCardPage() {
                   <InputLabel>Участок</InputLabel>
                   <Select value={form.organizationId} label="Участок" onChange={handleSelect('organizationId')}>
                     <MenuItem value="">— не выбран —</MenuItem>
-                    {organizations.map((o: any) => <MenuItem key={o.id} value={String(o.id)}>{[o.factory, o.workshop, o.section].filter(Boolean).join(' → ')}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth>
-                  <InputLabel>Ответственный</InputLabel>
-                  <Select value={form.responsibleId} label="Ответственный" onChange={handleSelect('responsibleId')}>
-                    <MenuItem value="">— не выбран —</MenuItem>
-                    {responsibles.map((r: any) => <MenuItem key={r.id} value={String(r.id)}>{r.fullName ? `${r.fullName} (${r.position})` : r.position}</MenuItem>)}
+                    {organizations.map((o: any) => <MenuItem key={o.id} value={String(o.id)}>{[o.workshop, o.section].filter(Boolean).join(' → ')}</MenuItem>)}
                   </Select>
                 </FormControl>
               </Grid>
@@ -428,7 +430,7 @@ export default function InstrumentCardPage() {
             {history.map((h: any) => (
               <TableRow key={h.id}>
                 <TableCell>{new Date(h.createdAt).toLocaleString('ru-RU')}</TableCell>
-                <TableCell>{h.action}</TableCell>
+                <TableCell>{ACTION_LABELS[h.action] || h.action}</TableCell>
                 <TableCell>{h.userId}</TableCell>
               </TableRow>
             ))}

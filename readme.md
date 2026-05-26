@@ -1,29 +1,30 @@
 # ПоТролога — помощник метролога
 
+> v1.1.0 · © 2026 Агафонов В.В. · [GitHub](https://github.com/ViktorAgafonov/PoTrologa) · MIT License
+
 Веб-приложение для учёта средств измерений, контроля поверок и управления жизненным циклом оборудования метрологической службы предприятия.
 
 ## Стек
 
-- **Frontend**: React 19, TypeScript, Vite, Material UI 9, Recharts
+- **Frontend**: React 19, TypeScript, Vite, Material UI 9
 - **Backend**: Node.js 20, Express, TypeScript, TypeORM, sql.js (SQLite)
 - **Auth**: Passport.js + express-session
 - **Deploy**: Docker (single container)
 
 ## Возможности
 
-- **Дашборд** — виджеты статистики, графики по типам СИ и подразделениям
-- **Список СИ** — сортировка, фильтры (тип, статус), поиск, экспорт XLSX
-- **Карточка СИ** — основные данные, поверки, ремонты, документы, история изменений
+- **Список СИ** (главная) — сортировка по инв. номеру, статусу, датам поверки; фильтры (тип, статус); поиск; экспорт XLSX
+- **Карточка СИ** — основные данные, поверки (пред./след. дата), ремонты, документы, история изменений
 - **Автоприсвоение инв. номера** при создании
-- **Импорт XLSX** — маппинг колонок, предпросмотр, разрешение конфликтов
-- **Процедура списания** — полный workflow с генерацией актов из шаблонов
-- **Управление шаблонами** актов
-- **Проверка в АРШИН** — ссылка на ФГИС
-- **Справочники** — типы СИ, участки, ответственные (CRUD + удаление с проверкой связей)
+- **Импорт XLSX** — вкладка в настройках: загрузка → маппинг колонок → предпросмотр → коммит
+- **Процедура списания** — workflow: черновик → печать акта → загрузка скана → завершение
+- **Шаблоны актов** — загрузка, редактирование, переменные `{{procedureNumber}}` `{{date}}` `{{reason}}` `{{instrumentTable}}`
+- **Справочники** — типы СИ, участки (цех → участок)
 - **Пользователи** — роли ADMIN / METROLOGIST / VIEWER
 - **Бэкапы** — создание, скачивание, восстановление
 - **Уведомления** о приближающихся поверках
-- **Аудит** — журнал всех изменений
+- **Аудит** — журнал всех изменений (русские метки действий)
+- **Отчёты** — по статусам, подразделениям, типам
 
 ## Быстрый старт (разработка)
 
@@ -70,25 +71,43 @@ docker run -d -p 3000:3000 -v potrologa-data:/app/backend/data potrologa
 
 Base URL: `/api/v1/`
 
-Основные группы: `/auth`, `/instruments`, `/documents`, `/import`, `/reports`, `/backups`, `/notifications`, `/users`, `/references`, `/writeoff-procedures`, `/templates`, `/monitoring/health`
+Группы: `/auth`, `/instruments`, `/documents`, `/import`, `/reports`, `/backups`, `/notifications`, `/users`, `/references`, `/writeoff-procedures`, `/templates`, `/monitoring/health`
 
 ## Структура проекта
 
 ```
 backend/src/
   app.ts           — точка входа, Express
-  config/          — database, passport
-  entities/        — TypeORM сущности
+  config/          — database, passport, env
+  entities/        — TypeORM сущности (Instrument, Writeoff, Document, AuditLog, User и др.)
   controllers/     — обработчики запросов
   services/        — бизнес-логика
   routes/          — маршруты API
   middleware/      — auth, logger, errorHandler
-  jobs/            — cron задачи
+  jobs/            — cron задачи (статусы поверок)
   seeds/           — начальные данные
 frontend/src/
   App.tsx           — маршрутизация
-  pages/            — страницы (Dashboard, Instruments, Import, Writeoff, Settings...)
-  components/       — Layout, навигация
+  pages/            — InstrumentList, InstrumentCard, Writeoff, Templates, Backup, Settings
+  components/       — Layout (permanent sidebar + tooltips)
   services/api.ts   — API-клиент
   hooks/            — useAuth
 ```
+
+## Автор
+
+**Агафонов Виктор Викторович**, 2026 г.
+
+GitHub: [github.com/ViktorAgafonov/PoTrologa](https://github.com/ViktorAgafonov/PoTrologa)
+
+## Генерация кода
+
+Исходный код этого проекта сгенерирован с помощью **Cascade** — AI-ассистента для программирования, разработанного компанией [Codeium](https://codeium.com) (продукт [Windsurf IDE](https://windsurf.com)).
+
+Большая благодарность команде Codeium за создание такого мощного инструмента нейросетевой генерации кода, который позволяет воплощать идеи в рабочие приложения с минимальными усилиями.
+
+## Лицензия
+
+[MIT](LICENSE)
+
+Все используемые библиотеки распространяются под совместимыми свободными лицензиями (MIT, Apache-2.0).

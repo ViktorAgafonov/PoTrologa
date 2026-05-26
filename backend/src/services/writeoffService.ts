@@ -1,12 +1,11 @@
 import { AppDataSource } from '../config/database';
-import { WriteoffProcedure, WriteoffProcedureItem, WriteoffApproval, WriteoffStatus } from '../entities/Writeoff';
+import { WriteoffProcedure, WriteoffProcedureItem, WriteoffStatus } from '../entities/Writeoff';
 import { Instrument, InstrumentStatus } from '../entities/Instrument';
 
 // Сервис процедуры списания СИ
 export class WriteoffService {
   private procRepo = AppDataSource.getRepository(WriteoffProcedure);
   private itemRepo = AppDataSource.getRepository(WriteoffProcedureItem);
-  private approvalRepo = AppDataSource.getRepository(WriteoffApproval);
   private instrRepo = AppDataSource.getRepository(Instrument);
 
   // Создать процедуру списания (DRAFT)
@@ -45,35 +44,10 @@ export class WriteoffService {
     });
   }
 
-  // Отправить на согласование
+  // Перевести в ожидание скана (акт напечатан)
   async sendToApproval(id: number) {
-    await this.procRepo.update(id, { status: WriteoffStatus.IN_APPROVAL });
+    await this.procRepo.update(id, { status: WriteoffStatus.WAITING_SCAN });
     return this.getById(id);
-  }
-
-  // Добавить согласование
-  async addApproval(procedureId: number, data: { approverName: string; approverPosition: string }) {
-    const approval = this.approvalRepo.create({ procedureId, ...data });
-    return this.approvalRepo.save(approval);
-  }
-
-  // Утвердить согласование
-  async approve(approvalId: number, approved: boolean, comment?: string) {
-    await this.approvalRepo.update(approvalId, {
-      approved,
-      comment: comment || '',
-      approvedAt: new Date().toISOString(),
-    });
-
-    // Проверить все ли согласовали — перевести в WAITING_SCAN
-    const approval = await this.approvalRepo.findOneBy({ id: approvalId });
-    if (approval && approved) {
-      const all = await this.approvalRepo.find({ where: { procedureId: approval.procedureId } });
-      const allApproved = all.every((a) => a.approved);
-      if (allApproved) {
-        await this.procRepo.update(approval.procedureId, { status: WriteoffStatus.WAITING_SCAN });
-      }
-    }
   }
 
   // Загрузить скан подписанного акта и завершить процедуру

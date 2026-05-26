@@ -6,7 +6,7 @@ import {
   Button, TableSortLabel, FormControl, InputLabel, Select, MenuItem,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
-import VisibilityIcon from '@mui/icons-material/Visibility'
+import EditIcon from '@mui/icons-material/Edit'
 import FileDownloadIcon from '@mui/icons-material/FileDownload'
 import { instrumentApi, referenceApi } from '../services/api'
 
@@ -27,9 +27,9 @@ const columns: { id: string; label: string; sortable: boolean }[] = [
   { id: 'name', label: 'Название', sortable: true },
   { id: 'type', label: 'Тип', sortable: true },
   { id: 'organization', label: 'Участок', sortable: true },
-  { id: 'responsible', label: 'Ответственный', sortable: true },
   { id: 'status', label: 'Статус', sortable: true },
-  { id: 'createdAt', label: 'Дата создания', sortable: true },
+  { id: 'lastVerificationDate', label: 'Пред. поверка', sortable: true },
+  { id: 'nextVerificationDate', label: 'След. поверка', sortable: true },
 ]
 
 const statusOptions = ['Действующее', 'Просрочено', 'Поверка через 14 дн.', 'Поверка через 30 дн.', 'В ремонте', 'Списано']
@@ -84,15 +84,13 @@ export default function InstrumentListPage() {
       case 'name': return item.name
       case 'type': return item.type?.name || '—'
       case 'organization': return item.organization
-        ? [item.organization.factory, item.organization.workshop, item.organization.section].filter(Boolean).join(' → ')
-        : '—'
-      case 'responsible': return item.responsible
-        ? (item.responsible.fullName || item.responsible.position)
+        ? [item.organization.workshop, item.organization.section].filter(Boolean).join(' → ')
         : '—'
       case 'status': return (
         <Chip label={item.status} size="small" color={statusColors[item.status] || 'default'} />
       )
-      case 'createdAt': return item.createdAt ? new Date(item.createdAt).toLocaleDateString('ru-RU') : '—'
+      case 'lastVerificationDate': return item.lastVerificationDate || '—'
+      case 'nextVerificationDate': return item.nextVerificationDate || '—'
       default: return ''
     }
   }
@@ -160,7 +158,7 @@ export default function InstrumentListPage() {
                 ))}
                 <TableCell align="center">
                   <IconButton size="small" onClick={() => navigate(`/instruments/${item.id}`)}>
-                    <VisibilityIcon />
+                    <EditIcon />
                   </IconButton>
                 </TableCell>
               </TableRow>
