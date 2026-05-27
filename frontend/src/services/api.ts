@@ -44,14 +44,15 @@ export const instrumentApi = {
 
 // Импорт
 export const importApi = {
-  upload: (file: File, mapping?: any) => {
+  upload: (file: File, mapping?: any, headerRow?: number) => {
     const fd = new FormData()
     fd.append('file', file)
     if (mapping) fd.append('mapping', JSON.stringify(mapping))
+    if (headerRow !== undefined) fd.append('headerRow', String(headerRow))
     return fetch(BASE + '/import/upload', { method: 'POST', body: fd, credentials: 'include' }).then(r => r.json())
   },
-  updateMapping: (id: string, mapping: Record<string, string>) =>
-    request<any>(`/import/${id}/mapping`, { method: 'POST', body: JSON.stringify({ mapping }) }),
+  updateMapping: (id: string, mapping: Record<string, string>, headerRow?: number) =>
+    request<any>(`/import/${id}/mapping`, { method: 'POST', body: JSON.stringify({ mapping, headerRow }) }),
   preview: (id: string) => request<any>(`/import/${id}/preview`),
   commit: (id: string, resolutions?: any) =>
     request<any>(`/import/${id}/commit`, { method: 'POST', body: JSON.stringify({ resolutions }) }),
@@ -95,15 +96,27 @@ export const writeoffApi = {
   create: (data: any) => request<any>('/writeoff-procedures', { method: 'POST', body: JSON.stringify(data) }),
   getAll: () => request<any>('/writeoff-procedures'),
   getById: (id: number) => request<any>(`/writeoff-procedures/${id}`),
+  getByInstrumentId: (instrumentId: number) => request<any>(`/writeoff-procedures/instrument/${instrumentId}`),
   sendToApproval: (id: number) => request<any>(`/writeoff-procedures/${id}/send-to-approval`, { method: 'POST' }),
-  uploadScan: (id: number, file: File) => {
+  uploadScan: (id: number, file: File, procedureNumber?: string) => {
     const fd = new FormData()
     fd.append('file', file)
+    if (procedureNumber) {
+      fd.append('filename', `Акт списания ${procedureNumber}.pdf`)
+    }
     return fetch(BASE + `/documents`, { method: 'POST', body: fd, credentials: 'include' })
-      .then(r => r.json())
-      .then(doc => request<any>(`/writeoff-procedures/${id}/upload-scan`, { method: 'POST', body: JSON.stringify({ documentId: doc.data.id }) }))
+      .then(async (r) => {
+        if (!r.ok) throw new Error('Ошибка загрузки документа')
+        return r.json()
+      })
+      .then(doc => {
+        const documentId = doc.data?.id ?? doc.id
+        if (!documentId) throw new Error('Документ не создан')
+        return request<any>(`/writeoff-procedures/${id}/upload-scan`, { method: 'POST', body: JSON.stringify({ documentId }) })
+      })
   },
   cancel: (id: number) => request<any>(`/writeoff-procedures/${id}/cancel`, { method: 'POST' }),
+  remove: (id: number) => request<any>(`/writeoff-procedures/${id}`, { method: 'DELETE' }),
 }
 
 // Шаблоны актов
@@ -120,7 +133,7 @@ export const templateApi = {
   remove: (filename: string) =>
     request<any>(`/templates/${encodeURIComponent(filename)}`, { method: 'DELETE' }),
   getContent: (filename: string) =>
-    fetch(`${BASE}/templates/${encodeURIComponent(filename)}`, { credentials: 'include' }).then(r => r.text()),
+    fetch(`${BASE}/templates/${encodeURIComponent(filename)}/content`, { credentials: 'include' }).then(r => r.text()),
 }
 
 // Генерация акта
@@ -137,6 +150,13 @@ export const documentApi = {
   },
   downloadUrl: (id: number) => `${BASE}/documents/${id}`,
   remove: (id: number) => request<any>(`/documents/${id}`, { method: 'DELETE' }),
+}
+
+// Настройки
+export const settingsApi = {
+  getWriteoffTemplate: () => request<any>('/settings/writeoff-template'),
+  setWriteoffTemplate: (template: string) =>
+    request<any>('/settings/writeoff-template', { method: 'PUT', body: JSON.stringify({ template }) }),
 }
 
 // AuditLog

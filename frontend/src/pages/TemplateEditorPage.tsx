@@ -38,10 +38,14 @@ export default function TemplateEditorPage() {
 
   const handleEdit = async (filename: string) => {
     setError('')
-    const content = await templateApi.getContent(filename)
-    setEditFilename(filename)
-    setEditContent(content)
-    setEditDlg(true)
+    try {
+      const content = await templateApi.getContent(filename)
+      setEditFilename(filename)
+      setEditContent(content)
+      setEditDlg(true)
+    } catch (err: any) {
+      setError(err.message || 'Ошибка загрузки шаблона')
+    }
   }
 
   const handleSave = async () => {
@@ -89,13 +93,15 @@ export default function TemplateEditorPage() {
                 <TableCell>{Math.round(t.size / 1024)} КБ</TableCell>
                 <TableCell>{new Date(t.modified).toLocaleDateString('ru-RU')}</TableCell>
                 <TableCell align="right">
-                  <IconButton size="small" onClick={() => window.open(templateApi.download(t.filename), '_blank')}>
+                  <IconButton size="small" onClick={() => window.open(templateApi.download(t.filename), '_blank')} title="Скачать">
                     <DownloadIcon />
                   </IconButton>
-                  <IconButton size="small" onClick={() => handleEdit(t.filename)}>
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton size="small" color="error" onClick={() => handleDelete(t.filename)}>
+                  {!t.filename.endsWith('.docx') && (
+                    <IconButton size="small" onClick={() => handleEdit(t.filename)} title="Редактировать">
+                      <EditIcon />
+                    </IconButton>
+                  )}
+                  <IconButton size="small" color="error" onClick={() => handleDelete(t.filename)} title="Удалить">
                     <DeleteIcon />
                   </IconButton>
                 </TableCell>

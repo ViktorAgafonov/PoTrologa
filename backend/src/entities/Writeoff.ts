@@ -1,4 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import { Instrument } from './Instrument';
+import { Document } from './Document';
 
 // Статусы процедуры списания
 export enum WriteoffStatus {
@@ -41,6 +43,10 @@ export class WriteoffProcedure {
 
   @OneToMany(() => WriteoffApproval, (a) => a.procedure)
   approvals!: WriteoffApproval[];
+
+  @ManyToOne(() => Document, { nullable: true })
+  @JoinColumn({ name: 'scan_document_id' })
+  scanDocument!: Document | null;
 }
 
 // Позиция в процедуре списания (привязка к конкретному СИ)
@@ -61,6 +67,10 @@ export class WriteoffProcedureItem {
   @ManyToOne(() => WriteoffProcedure, (p) => p.items)
   @JoinColumn({ name: 'procedure_id' })
   procedure!: WriteoffProcedure;
+
+  @ManyToOne(() => Instrument)
+  @JoinColumn({ name: 'instrument_id' })
+  instrument!: Instrument;
 }
 
 // Согласования процедуры списания

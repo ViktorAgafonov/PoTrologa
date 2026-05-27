@@ -25,6 +25,7 @@ const statusColors: Record<string, 'success' | 'error' | 'warning' | 'info' | 'd
 const columns: { id: string; label: string; sortable: boolean }[] = [
   { id: 'inventoryNumber', label: 'Инв. №', sortable: true },
   { id: 'name', label: 'Название', sortable: true },
+  { id: 'productionYear', label: 'Год выпуска', sortable: true },
   { id: 'type', label: 'Тип', sortable: true },
   { id: 'organization', label: 'Участок', sortable: true },
   { id: 'status', label: 'Статус', sortable: true },
@@ -34,26 +35,45 @@ const columns: { id: string; label: string; sortable: boolean }[] = [
 
 const statusOptions = ['Действующее', 'Просрочено', 'Поверка через 14 дн.', 'Поверка через 30 дн.', 'В ремонте', 'Списано']
 
+const LIST_STATE_KEY = 'instrumentListState'
+
+function getSavedState() {
+  try {
+    const raw = localStorage.getItem(LIST_STATE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch { /* ignore */ }
+  return null
+}
+
 export default function InstrumentListPage() {
+  const saved = getSavedState()
   const [items, setItems] = useState<any[]>([])
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(0)
-  const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState('inventoryNumber')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [page, setPage] = useState(saved?.page ?? 0)
+  const [search, setSearch] = useState(saved?.search ?? '')
+  const [sortBy, setSortBy] = useState(saved?.sortBy ?? 'inventoryNumber')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(saved?.sortOrder ?? 'desc')
   // Фильтры
-  const [filterType, setFilterType] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
+  const [filterType, setFilterType] = useState(saved?.filterType ?? '')
+  const [filterStatus, setFilterStatus] = useState(saved?.filterStatus ?? '')
   const [types, setTypes] = useState<any[]>([])
+  const [rowsPerPage, setRowsPerPage] = useState(saved?.rowsPerPage ?? 100)
   const navigate = useNavigate()
+
+  // Сохраняем состояние при изменении
+  useEffect(() => {
+    localStorage.setItem(LIST_STATE_KEY, JSON.stringify({
+      page, search, sortBy, sortOrder, filterType, filterStatus, rowsPerPage
+    }))
+  }, [page, search, sortBy, sortOrder, filterType, filterStatus, rowsPerPage])
 
   useEffect(() => {
     referenceApi.getTypes().then((res) => setTypes(res.data || []))
   }, [])
 
-  const fetchData = (p: number, s: string, sb: string, so: string) => {
+  const fetchData = (p: number, s: string, sb: string, so: string, limit: number) => {
     const params: Record<string, string> = {
-      page: String(p + 1), limit: '25',
+      page: String(p + 1), limit: String(limit),
       sortBy: sb, sortOrder: so.toUpperCase(),
     }
     if (s) params.search = s
@@ -65,7 +85,7 @@ export default function InstrumentListPage() {
     })
   }
 
-  useEffect(() => { fetchData(page, search, sortBy, sortOrder) }, [page, search, sortBy, sortOrder, filterType, filterStatus])
+  useEffect(() => { fetchData(page, search, sortBy, sortOrder, rowsPerPage) }, [page, search, sortBy, sortOrder, filterType, filterStatus, rowsPerPage])
 
   const handleSort = (col: string) => {
     if (sortBy === col) {
@@ -77,11 +97,19 @@ export default function InstrumentListPage() {
     setPage(0)
   }
 
+  // Формат даты: YYYY-MM-DD → DD.MM.YYYY
+  const fmtDate = (d: string) => {
+    if (!d) return '—'
+    const m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    return m ? `${m[3]}.${m[2]}.${m[1]}` : d
+  }
+
   // Отображение значения ячейки
   const cellValue = (item: any, colId: string) => {
     switch (colId) {
       case 'inventoryNumber': return item.inventoryNumber
       case 'name': return item.name
+      case 'productionYear': return item.productionYear || '—'
       case 'type': return item.type?.name || '—'
       case 'organization': return item.organization
         ? [item.organization.workshop, item.organization.section].filter(Boolean).join(' → ')
@@ -89,8 +117,8 @@ export default function InstrumentListPage() {
       case 'status': return (
         <Chip label={item.status} size="small" color={statusColors[item.status] || 'default'} />
       )
-      case 'lastVerificationDate': return item.lastVerificationDate || '—'
-      case 'nextVerificationDate': return item.nextVerificationDate || '—'
+      case 'lastVerificationDate': return fmtDate(item.lastVerificationDate)
+      case 'nextVerificationDate': return fmtDate(item.nextVerificationDate)
       default: return ''
     }
   }
@@ -128,7 +156,21 @@ export default function InstrumentListPage() {
             {statusOptions.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
           </Select>
         </FormControl>
+        <FormControl size="small" sx={{ minWidth: 100 }}>
+          <InputLabel>На странице</InputLabel>
+          <Select value={rowsPerPage} label="На странице" onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0) }}>
+            {[25, 50, 100, 250, 500].map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
+          </Select>
+        </FormControl>
       </Box>
+
+      <TablePagination
+        component="div" count={total} page={page} rowsPerPage={rowsPerPage}
+        onPageChange={(_, p) => setPage(p)} rowsPerPageOptions={[25, 50, 100, 250, 500]}
+        onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0) }}
+        labelRowsPerPage="На странице:"
+        sx={{ mb: 1 }}
+      />
 
       <TableContainer component={Paper}>
         <Table size="small">
@@ -173,8 +215,10 @@ export default function InstrumentListPage() {
       </TableContainer>
 
       <TablePagination
-        component="div" count={total} page={page} rowsPerPage={25}
-        onPageChange={(_, p) => setPage(p)} rowsPerPageOptions={[25]}
+        component="div" count={total} page={page} rowsPerPage={rowsPerPage}
+        onPageChange={(_, p) => setPage(p)} rowsPerPageOptions={[25, 50, 100, 250, 500]}
+        onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0) }}
+        labelRowsPerPage="На странице:"
       />
     </Box>
   )

@@ -5,6 +5,7 @@ import {
   Table, TableHead, TableRow, TableCell, TableBody, Chip, Alert,
   FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle,
   DialogContent, DialogActions, IconButton, FormControlLabel, Checkbox,
+  Autocomplete,
 } from '@mui/material'
 import type { SelectChangeEvent } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
@@ -12,12 +13,12 @@ import SaveIcon from '@mui/icons-material/Save'
 import AddIcon from '@mui/icons-material/Add'
 import DownloadIcon from '@mui/icons-material/Download'
 import UploadIcon from '@mui/icons-material/Upload'
-import { instrumentApi, referenceApi, documentApi, auditApi } from '../services/api'
+import { instrumentApi, referenceApi, documentApi, auditApi, writeoffApi } from '../services/api'
 
 const emptyForm = {
   name: '', model: '', serialNumber: '', manufacturer: '',
-  inventoryNumber: '', verificationIntervalMonths: '',
-  typeId: '', organizationId: '', startDate: '',
+  inventoryNumber: '', productionYear: '', verificationIntervalMonths: '12',
+  typeId: '', organizationId: '', lastVerificationDate: '',
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -35,6 +36,13 @@ const ACTION_LABELS: Record<string, string> = {
   WRITEOFF_CANCEL: 'Отмена списания',
 }
 
+const WRITEOFF_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Черновик',
+  WAITING_SCAN: 'Ожидание скана',
+  COMPLETED: 'Завершено',
+  CANCELLED: 'Отменено',
+}
+
 export default function InstrumentCardPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -47,10 +55,16 @@ export default function InstrumentCardPage() {
   // Справочники для выпадающих списков
   const [types, setTypes] = useState<any[]>([])
   const [organizations, setOrganizations] = useState<any[]>([])
+  // Автоподсказки
+  const [nameOptions, setNameOptions] = useState<string[]>([])
+  const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [manufacturerOptions, setManufacturerOptions] = useState<string[]>([])
   // Документы
   const [documents, setDocuments] = useState<any[]>([])
   // История (AuditLog)
   const [history, setHistory] = useState<any[]>([])
+  // Процедуры списания
+  const [writeoffProcedures, setWriteoffProcedures] = useState<any[]>([])
   // Диалоги добавления поверки/ремонта
   const [verDlg, setVerDlg] = useState(false)
   const [verForm, setVerForm] = useState({ verificationDate: '', result: 'PASSED', organization: '', nextVerificationDate: '' })
@@ -68,16 +82,24 @@ export default function InstrumentCardPage() {
     if (isNew || !id) return
     if (tab === 3) {
       instrumentApi.getById(Number(id)).then((res) => setDocuments(res.data?.documents || []))
+      writeoffApi.getByInstrumentId(Number(id)).then((res) => setWriteoffProcedures(res.data || []))
     }
     if (tab === 4) {
       auditApi.getByEntity('instrument', Number(id)).then((res) => setHistory(res.data || []))
     }
   }, [tab, id])
 
-  // Загрузка справочников
+  // Загрузка справочников и данных для автоподсказок
   useEffect(() => {
     referenceApi.getTypes().then((res) => setTypes(res.data || []))
     referenceApi.getOrganizations().then((res) => setOrganizations(res.data || []))
+    // Собрать варианты для автоподсказок из существующих СИ
+    instrumentApi.getAll({ page: '1', limit: '1000' }).then((res) => {
+      const items = res.items || []
+      setNameOptions(Array.from(new Set(items.map((i: any) => i.name as string).filter(Boolean))))
+      setModelOptions(Array.from(new Set(items.map((i: any) => i.model as string).filter(Boolean))))
+      setManufacturerOptions(Array.from(new Set(items.map((i: any) => i.manufacturer as string).filter(Boolean))))
+    })
   }, [])
 
   useEffect(() => {
@@ -91,9 +113,11 @@ export default function InstrumentCardPage() {
           serialNumber: d.serialNumber || '',
           manufacturer: d.manufacturer || '',
           inventoryNumber: d.inventoryNumber || '',
-          verificationIntervalMonths: String(d.verificationIntervalMonths || ''),
+          productionYear: d.productionYear || '',
+          verificationIntervalMonths: String(d.verificationIntervalMonths || '12'),
           typeId: String(d.typeId || ''),
           organizationId: String(d.organizationId || ''),
+          lastVerificationDate: d.lastVerificationDate || '',
         })
         setLoading(false)
       })
@@ -118,8 +142,9 @@ export default function InstrumentCardPage() {
         model: form.model,
         serialNumber: form.serialNumber,
         manufacturer: form.manufacturer,
-        startDate: form.startDate || null,
-        verificationIntervalMonths: form.verificationIntervalMonths ? Number(form.verificationIntervalMonths) : null,
+        productionYear: form.productionYear || null,
+        lastVerificationDate: form.lastVerificationDate || null,
+        verificationIntervalMonths: form.verificationIntervalMonths ? Number(form.verificationIntervalMonths) : 12,
         typeId: form.typeId ? Number(form.typeId) : null,
         organizationId: form.organizationId ? Number(form.organizationId) : null,
       }
@@ -162,37 +187,25 @@ export default function InstrumentCardPage() {
           <CardContent>
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField label="Название" fullWidth value={form.name} onChange={handleChange('name')} />
+                <Autocomplete freeSolo options={nameOptions} value={form.name}
+                  onInputChange={(_, v) => setForm({ ...form, name: v })}
+                  renderInput={(params) => <TextField {...params} label="Название" fullWidth />} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField label="Модель" fullWidth value={form.model} onChange={handleChange('model')} />
+                <Autocomplete freeSolo options={modelOptions} value={form.model}
+                  onInputChange={(_, v) => setForm({ ...form, model: v })}
+                  renderInput={(params) => <TextField {...params} label="Модель" fullWidth />} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField label="Серийный номер" fullWidth value={form.serialNumber} onChange={handleChange('serialNumber')} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField label="Производитель" fullWidth value={form.manufacturer} onChange={handleChange('manufacturer')} />
+                <Autocomplete freeSolo options={manufacturerOptions} value={form.manufacturer}
+                  onInputChange={(_, v) => setForm({ ...form, manufacturer: v })}
+                  renderInput={(params) => <TextField {...params} label="Производитель" fullWidth />} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                {isNew ? (
-                  <Box>
-                    <FormControlLabel
-                      control={<Checkbox checked={autoInvNumber} onChange={(e) => setAutoInvNumber(e.target.checked)} />}
-                      label="Новый инв. №  (автоприсвоение)"
-                    />
-                    {!autoInvNumber && (
-                      <TextField
-                        label="Инвентарный номер"
-                        fullWidth
-                        value={form.inventoryNumber}
-                        onChange={handleChange('inventoryNumber')}
-                        sx={{ mt: 1 }}
-                      />
-                    )}
-                  </Box>
-                ) : (
-                  <TextField label="Инвентарный номер" fullWidth value={form.inventoryNumber} disabled />
-                )}
+                <TextField label="Год выпуска" fullWidth value={form.productionYear} onChange={handleChange('productionYear')} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth>
@@ -214,11 +227,11 @@ export default function InstrumentCardPage() {
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
-                  label="Дата ввода в эксплуатацию"
+                  label="Дата последней поверки"
                   type="date"
                   fullWidth
-                  value={form.startDate}
-                  onChange={handleChange('startDate')}
+                  value={form.lastVerificationDate}
+                  onChange={handleChange('lastVerificationDate')}
                   slotProps={{ inputLabel: { shrink: true } }}
                 />
               </Grid>
@@ -229,6 +242,21 @@ export default function InstrumentCardPage() {
                   fullWidth
                   value={form.verificationIntervalMonths}
                   onChange={handleChange('verificationIntervalMonths')}
+                />
+              </Grid>
+                            <Grid size={{ xs: 12, sm: 6 }}>
+                {isNew && (
+                  <FormControlLabel
+                    control={<Checkbox checked={autoInvNumber} onChange={(e) => setAutoInvNumber(e.target.checked)} />}
+                    label="Автоприсвоение инв. №"
+                  />
+                )}
+                <TextField
+                  label="Инвентарный номер"
+                  fullWidth
+                  value={form.inventoryNumber}
+                  onChange={handleChange('inventoryNumber')}
+                  disabled={isNew ? autoInvNumber : true}
                 />
               </Grid>
             </Grid>
@@ -413,6 +441,39 @@ export default function InstrumentCardPage() {
               )}
             </TableBody>
           </Table>
+
+          {/* Акты списания */}
+          {writeoffProcedures.length > 0 && (
+            <>
+              <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>Акты списания</Typography>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Номер</TableCell>
+                    <TableCell>Статус</TableCell>
+                    <TableCell>Дата</TableCell>
+                    <TableCell>Действия</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {writeoffProcedures.map((p: any) => (
+                    <TableRow key={p.id}>
+                      <TableCell>{p.procedureNumber}</TableCell>
+                      <TableCell>{WRITEOFF_STATUS_LABELS[p.status] || p.status}</TableCell>
+                      <TableCell>{p.completedAt ? new Date(p.completedAt).toLocaleDateString('ru-RU') : '—'}</TableCell>
+                      <TableCell>
+                        {p.scanDocument && (
+                          <IconButton size="small" onClick={() => window.open(`/api/v1/documents/${p.scanDocument.id}`, '_blank')}>
+                            <DownloadIcon />
+                          </IconButton>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
+          )}
         </>
       )}
 

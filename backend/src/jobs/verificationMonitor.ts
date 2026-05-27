@@ -39,7 +39,9 @@ export async function updateVerificationStatuses(): Promise<void> {
 
     let nextDate: Date | null = null;
 
-    if (lastVer?.nextVerificationDate) {
+    if (inst.nextVerificationDate) {
+      nextDate = new Date(inst.nextVerificationDate);
+    } else if (lastVer?.nextVerificationDate) {
       nextDate = new Date(lastVer.nextVerificationDate);
     } else if (lastVer?.verificationDate && inst.verificationIntervalMonths) {
       const d = new Date(lastVer.verificationDate);

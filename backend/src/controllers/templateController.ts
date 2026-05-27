@@ -34,6 +34,19 @@ export class TemplateController {
     } catch (err) { next(err); }
   }
 
+  // GET /api/v1/templates/:filename/content — получить содержимое (для редактора)
+  async getContent(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filename = req.params.filename as string;
+      const content = service.getContent(filename);
+      if (content === null) {
+        res.status(404).json({ success: false, message: 'Шаблон не найден' });
+        return;
+      }
+      res.type('text/plain').send(content);
+    } catch (err) { next(err); }
+  }
+
   // PUT /api/v1/templates/:filename — обновить содержимое
   async update(req: Request, res: Response, next: NextFunction) {
     try {

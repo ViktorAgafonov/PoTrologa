@@ -17,6 +17,7 @@ export class InstrumentService {
     inventoryNumber: 'i.inventoryNumber',
     name: 'i.name',
     serialNumber: 'i.serialNumber',
+    productionYear: 'i.productionYear',
     status: 'i.status',
     createdAt: 'i.createdAt',
     lastVerificationDate: 'i.lastVerificationDate',
@@ -79,12 +80,47 @@ export class InstrumentService {
     if (!data.inventoryNumber) {
       data.inventoryNumber = await inventoryService.getNextNumber();
     }
+    // Вычислить nextVerificationDate по lastVerificationDate + интервал
+    if (data.lastVerificationDate && !data.nextVerificationDate) {
+      const months = data.verificationIntervalMonths || 12;
+      const d = new Date(data.lastVerificationDate);
+      d.setMonth(d.getMonth() + months);
+      data.nextVerificationDate = d.toISOString().split('T')[0];
+    }
+    // Установить статус по дате следующей поверки
+    if (data.nextVerificationDate) {
+      const now = new Date();
+      const next = new Date(data.nextVerificationDate);
+      const in14 = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      if (next < now) data.status = InstrumentStatus.EXPIRED;
+      else if (next <= in14) data.status = InstrumentStatus.VERIFICATION_14DAYS;
+      else if (next <= in30) data.status = InstrumentStatus.VERIFICATION_MONTH;
+      else data.status = InstrumentStatus.ACTIVE;
+    }
     const instrument = this.repo.create(data);
     return this.repo.save(instrument);
   }
 
   // Обновить СИ (запрещено менять статус напрямую на WRITEOFF)
   async update(id: number, data: Partial<Instrument>) {
+    // Пересчитать nextVerificationDate если изменили lastVerificationDate
+    if (data.lastVerificationDate) {
+      const existing = await this.repo.findOneBy({ id });
+      const months = data.verificationIntervalMonths || existing?.verificationIntervalMonths || 12;
+      const d = new Date(data.lastVerificationDate);
+      d.setMonth(d.getMonth() + months);
+      data.nextVerificationDate = d.toISOString().split('T')[0];
+      // Пересчитать статус
+      const now = new Date();
+      const next = new Date(data.nextVerificationDate);
+      const in14 = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      if (next < now) data.status = InstrumentStatus.EXPIRED;
+      else if (next <= in14) data.status = InstrumentStatus.VERIFICATION_14DAYS;
+      else if (next <= in30) data.status = InstrumentStatus.VERIFICATION_MONTH;
+      else data.status = InstrumentStatus.ACTIVE;
+    }
     await this.repo.update(id, data);
     return this.getById(id);
   }
@@ -92,20 +128,39 @@ export class InstrumentService {
   // Добавить запись поверки
   async addVerification(instrumentId: number, data: Partial<VerificationHistory>) {
     data.instrumentId = instrumentId;
+
+    // Если nextVerificationDate не указан — вычислить по интервалу
+    if (!data.nextVerificationDate && data.verificationDate) {
+      const inst = await this.repo.findOneBy({ id: instrumentId });
+      const months = inst?.verificationIntervalMonths || 12;
+      const d = new Date(data.verificationDate);
+      d.setMonth(d.getMonth() + months);
+      data.nextVerificationDate = d.toISOString().split('T')[0];
+    }
+
     const record = this.verRepo.create(data);
     const saved = await this.verRepo.save(record);
 
-    // Обновить даты поверки на карточке СИ
-    const update: Partial<Instrument> = {
+    // Обновить даты поверки на карточке СИ и пересчитать статус
+    const now = new Date();
+    const nextDate = data.nextVerificationDate ? new Date(data.nextVerificationDate) : null;
+    let newStatus: InstrumentStatus = InstrumentStatus.ACTIVE;
+
+    if (data.result === VerificationResult.FAILED) {
+      newStatus = InstrumentStatus.EXPIRED;
+    } else if (nextDate) {
+      const in14 = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      if (nextDate < now) newStatus = InstrumentStatus.EXPIRED;
+      else if (nextDate <= in14) newStatus = InstrumentStatus.VERIFICATION_14DAYS;
+      else if (nextDate <= in30) newStatus = InstrumentStatus.VERIFICATION_MONTH;
+    }
+
+    await this.repo.update(instrumentId, {
       lastVerificationDate: data.verificationDate as any,
       nextVerificationDate: data.nextVerificationDate as any,
-    };
-
-    // Обновить статус СИ при непрохождении поверки
-    if (data.result === VerificationResult.FAILED) {
-      update.status = InstrumentStatus.ACTIVE;
-    }
-    await this.repo.update(instrumentId, update);
+      status: newStatus,
+    });
     return saved;
   }
 

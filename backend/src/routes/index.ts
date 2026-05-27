@@ -11,6 +11,7 @@ import { NotificationController } from '../controllers/notificationController';
 import { UserController } from '../controllers/userController';
 import { ReferenceController } from '../controllers/referenceController';
 import { WriteoffController } from '../controllers/writeoffController';
+import { SettingsController } from '../controllers/settingsController';
 import { TemplateController } from '../controllers/templateController';
 import { isAuthenticated, hasRole } from '../middleware/auth';
 import { UserRole } from '../entities/User';
@@ -32,6 +33,7 @@ const notifications = new NotificationController();
 const users = new UserController();
 const refs = new ReferenceController();
 const writeoffs = new WriteoffController();
+const settings = new SettingsController();
 const templates = new TemplateController();
 
 // --- Авторизация ---
@@ -50,15 +52,17 @@ router.get('/instruments/export', hasRole(UserRole.ADMIN, UserRole.METROLOGIST),
     const repo = AppDataSource.getRepository(Instrument);
     const items = await repo.find({ relations: ['type', 'organization'] });
     const rows = items.map((i) => ({
-      'Инв. №': i.inventoryNumber,
-      'Название': i.name,
-      'Модель': i.model,
-      'Серийный №': i.serialNumber,
-      'Производитель': i.manufacturer,
-      'Тип': i.type?.name || '',
-      'Участок': i.organization ? [i.organization.workshop, i.organization.section].filter(Boolean).join(' → ') : '',
+      'Наименование СИ': i.name,
+      'Тип, заводское обозначение': i.model,
+      'Изготовитель': i.manufacturer,
+      'Заводской номер': i.serialNumber,
+      'Инвентарный номер': i.inventoryNumber,
+      'Год выпуска': i.productionYear || '',
+      'Периодичность поверки (месяцы)': i.verificationIntervalMonths,
+      'Дата последней поверки': i.lastVerificationDate || '',
+      'Сроки предстоящей поверки (дата)': i.nextVerificationDate || '',
+      'Где находится': i.location || (i.organization ? [i.organization.workshop, i.organization.section].filter(Boolean).join(' → ') : ''),
       'Статус': i.status,
-      'Интервал поверки (мес)': i.verificationIntervalMonths,
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -130,16 +134,23 @@ router.delete('/references/organizations/:id', hasRole(UserRole.ADMIN), (req, re
 // --- Процедуры списания ---
 router.post('/writeoff-procedures', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => writeoffs.create(req, res, next));
 router.get('/writeoff-procedures', isAuthenticated, (req, res, next) => writeoffs.getAll(req, res, next));
+router.get('/writeoff-procedures/instrument/:instrumentId', isAuthenticated, (req, res, next) => writeoffs.getByInstrument(req, res, next));
 router.get('/writeoff-procedures/:id', isAuthenticated, (req, res, next) => writeoffs.getById(req, res, next));
 router.post('/writeoff-procedures/:id/send-to-approval', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => writeoffs.sendToApproval(req, res, next));
 router.post('/writeoff-procedures/:id/upload-scan', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => writeoffs.uploadScan(req, res, next));
 router.post('/writeoff-procedures/:id/generate-act', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => writeoffs.generateAct(req, res, next));
 router.post('/writeoff-procedures/:id/cancel', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => writeoffs.cancel(req, res, next));
+router.delete('/writeoff-procedures/:id', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => writeoffs.remove(req, res, next));
+
+// --- Настройки ---
+router.get('/settings/writeoff-template', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => settings.getWriteoffTemplate(req, res, next));
+router.put('/settings/writeoff-template', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => settings.setWriteoffTemplate(req, res, next));
 
 // --- Шаблоны ---
 router.get('/templates', isAuthenticated, (req, res, next) => templates.getAll(req, res, next));
 router.post('/templates', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), upload.single('file'), (req, res, next) => templates.upload(req, res, next));
 router.get('/templates/:filename', isAuthenticated, (req, res, next) => templates.download(req, res, next));
+router.get('/templates/:filename/content', isAuthenticated, (req, res, next) => templates.getContent(req, res, next));
 router.put('/templates/:filename', hasRole(UserRole.ADMIN, UserRole.METROLOGIST), (req, res, next) => templates.update(req, res, next));
 router.delete('/templates/:filename', hasRole(UserRole.ADMIN), (req, res, next) => templates.remove(req, res, next));
 

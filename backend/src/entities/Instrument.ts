@@ -46,8 +46,23 @@ export class Instrument {
   @Column({ nullable: true })
   manufacturer!: string;
 
+  @Column({ name: 'accuracy_class', nullable: true })
+  accuracyClass!: string;
+
+  @Column({ name: 'measurement_range', nullable: true })
+  measurementRange!: string;
+
+  @Column({ name: 'graduation_value', nullable: true })
+  graduationValue!: string;
+
+  @Column({ name: 'production_year', nullable: true })
+  productionYear!: string;
+
   @Column({ name: 'start_date', nullable: true })
   startDate!: string;
+
+  @Column({ name: 'location', nullable: true })
+  location!: string;
 
   @Column({ name: 'type_id', nullable: true })
   typeId!: number;

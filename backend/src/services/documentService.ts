@@ -9,21 +9,24 @@ export class DocumentService {
   private repo = AppDataSource.getRepository(Document);
 
   // Сохранить документ
-  async upload(instrumentId: number, type: DocumentType, file: Express.Multer.File) {
+  async upload(instrumentId: number, type: DocumentType, file: Express.Multer.File, customFilename?: string) {
     // Подкаталог по типу документа
-    const subdir = type.toLowerCase() + 's';
+    const safeType = type || DocumentType.OTHER;
+    const subdir = safeType.toLowerCase() + 's';
     const destDir = path.resolve(config.documentsPath, subdir);
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true });
     }
-    const uniqueName = `${Date.now()}_${file.originalname}`;
+    // Нормализация кодировки имени файла (latin1 -> utf-8)
+    const filename = customFilename || Buffer.from(file.originalname, 'latin1').toString('utf-8');
+    const uniqueName = `${Date.now()}_${filename}`;
     const destPath = path.join(destDir, uniqueName);
     fs.renameSync(file.path, destPath);
 
     const doc = this.repo.create({
       instrumentId,
-      type,
-      filename: file.originalname,
+      type: safeType,
+      filename,
       filepath: path.join(subdir, uniqueName),
       uploadDate: new Date().toISOString().split('T')[0],
     });

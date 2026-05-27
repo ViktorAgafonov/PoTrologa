@@ -25,7 +25,7 @@ export default function LoginPage() {
     <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
       <Card sx={{ minWidth: 360, p: 2 }}>
         <CardContent>
-          <Typography variant="h5" gutterBottom align="center">ПоТролога</Typography>
+          <Typography variant="h5" gutterBottom align="center">Помощник Метролога</Typography>
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
             Помощник метролога
           </Typography>

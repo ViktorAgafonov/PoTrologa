@@ -12,6 +12,7 @@ import { Document } from '../entities/Document';
 import { Notification } from '../entities/Notification';
 import { AuditLog } from '../entities/AuditLog';
 import { InventoryCounter } from '../entities/InventoryCounter';
+import { Setting, WriteoffCounter } from '../entities/Setting';
 
 const dbPath = process.env.DATABASE_PATH || './data/database/potrologa.sqlite';
 
@@ -19,8 +20,8 @@ export const AppDataSource = new DataSource({
   type: 'sqljs',
   location: path.resolve(dbPath),
   autoSave: true,
-  // В разработке synchronize:true, в продакшене — миграции
-  synchronize: process.env.NODE_ENV !== 'production',
+  // SQLite — синхронизация схемы всегда (миграции не требуются)
+  synchronize: true,
   entities: [
     User,
     InstrumentType,
@@ -36,5 +37,7 @@ export const AppDataSource = new DataSource({
     Notification,
     AuditLog,
     InventoryCounter,
+    Setting,
+    WriteoffCounter,
   ],
 });

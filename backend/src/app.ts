@@ -11,7 +11,7 @@ import { configurePassport } from './config/passport';
 import { requestLogger } from './middleware/requestLogger';
 import { errorHandler } from './middleware/errorHandler';
 import apiRoutes from './routes/index';
-import { startVerificationMonitor } from './jobs/verificationMonitor';
+import { startVerificationMonitor, updateVerificationStatuses } from './jobs/verificationMonitor';
 import { startBackupJob } from './jobs/backupJob';
 import { startLogCleanup } from './jobs/logCleanup';
 
@@ -85,14 +85,24 @@ async function bootstrap() {
   // Раздача фронтенда (SPA)
   const frontendPath = path.resolve(__dirname, '../../frontend/dist');
   if (fs.existsSync(frontendPath)) {
-    app.use(express.static(frontendPath));
+    // Assets с hash — кэшируем навсегда
+    app.use('/assets', express.static(path.join(frontendPath, 'assets'), { maxAge: '1y', immutable: true }));
+    // Остальные статические файлы
+    app.use(express.static(frontendPath, { maxAge: '1h' }));
+    // index.html — никакого кэша
     app.get('*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.sendFile(path.join(frontendPath, 'index.html'));
     });
   }
 
   // Глобальный обработчик ошибок
   app.use(errorHandler);
+
+  // Обновить статусы поверок при старте
+  await updateVerificationStatuses();
 
   // Запуск cron-задач
   startVerificationMonitor();

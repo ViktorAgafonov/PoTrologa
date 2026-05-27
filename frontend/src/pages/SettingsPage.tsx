@@ -8,20 +8,40 @@ import {
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
-import { userApi, referenceApi, importApi } from '../services/api'
+import { userApi, referenceApi, importApi, settingsApi } from '../services/api'
 import { useAuth } from '../hooks/useAuth'
 
 // Системные поля для маппинга импорта
 const SYSTEM_FIELDS = [
-  { key: 'name', label: 'Название' },
-  { key: 'model', label: 'Модель' },
-  { key: 'serialNumber', label: 'Серийный номер' },
+  { key: 'name', label: 'Наименование СИ' },
+  { key: 'model', label: 'Тип, заводское обозначение' },
+  { key: 'manufacturer', label: 'Изготовитель' },
+  { key: 'serialNumber', label: 'Заводской номер' },
   { key: 'inventoryNumber', label: 'Инвентарный номер' },
-  { key: 'manufacturer', label: 'Производитель' },
-  { key: 'status', label: 'Статус' },
-  { key: 'verificationIntervalMonths', label: 'Интервал поверки (мес.)' },
-  { key: 'startDate', label: 'Дата ввода в эксплуатацию' },
+  { key: 'productionYear', label: 'Год выпуска' },
+  { key: 'verificationIntervalMonths', label: 'Периодичность поверки (месяцы)' },
+  { key: 'lastVerificationDate', label: 'Дата последней поверки' },
+  { key: 'organization', label: 'Участок' },
 ]
+
+const VISIBLE_COLUMNS = 8
+
+function excelDateToJSDate(serial: number): string {
+  const date = new Date((serial - 25569) * 86400 * 1000)
+  return date.toISOString().split('T')[0]
+}
+
+function formatExcelCell(value: any): string {
+  if (value == null) return ''
+  if (typeof value === 'number' && value > 30000 && value < 60000) {
+    return excelDateToJSDate(value)
+  }
+  if (typeof value === 'string' && /^\d{5,6}$/.test(value)) {
+    const n = parseInt(value, 10)
+    if (n > 30000 && n < 60000) return excelDateToJSDate(n)
+  }
+  return String(value)
+}
 
 export default function SettingsPage() {
   const { user } = useAuth()
@@ -49,6 +69,14 @@ export default function SettingsPage() {
   const [importMapping, setImportMapping] = useState<Record<string, string>>({})
   const [importPreview, setImportPreview] = useState<any>(null)
   const [importResult, setImportResult] = useState<any>(null)
+  const [importRawRows, setImportRawRows] = useState<any[][]>([])
+  const [importHeaderRow, setImportHeaderRow] = useState<number>(0)
+  const [columnOffset, setColumnOffset] = useState(0)
+
+  // Конструктор номера списания
+  const [woTemplate, setWoTemplate] = useState('')
+  const [woTags, setWoTags] = useState<{ tag: string; label: string }[]>([])
+  const [woPreview, setWoPreview] = useState('')
 
   const [error, setError] = useState('')
 
@@ -61,6 +89,13 @@ export default function SettingsPage() {
   }
 
   useEffect(() => { loadAll() }, [user])
+
+  useEffect(() => {
+    settingsApi.getWriteoffTemplate().then((res) => {
+      setWoTemplate(res.data?.template || res.template || '')
+      setWoTags(res.data?.tags || res.tags || [])
+    })
+  }, [])
 
   const handleCreateUser = async () => {
     await userApi.create(newUser)
@@ -88,8 +123,17 @@ export default function SettingsPage() {
     try {
       setError('')
       const res = await importApi.upload(file)
-      setImportId(res.importId || res.data?.importId)
-      setImportHeaders(res.headers || res.data?.headers || [])
+      const id = res.import_id || res.importId || res.data?.import_id || res.data?.importId
+      const headers = res.headers || res.data?.headers || []
+      const mapping = res.mapping || res.data?.mapping || {}
+      const rawRows = res.raw_rows || res.data?.raw_rows || []
+      const headerRow = res.header_row ?? res.data?.header_row ?? 0
+      setImportId(id)
+      setImportHeaders(headers)
+      setImportMapping(mapping)
+      setImportRawRows(rawRows)
+      setImportHeaderRow(headerRow)
+      setColumnOffset(0)
       setImportStep(1)
     } catch (e: any) { setError(e.message) }
   }
@@ -98,7 +142,7 @@ export default function SettingsPage() {
   const handleImportMapping = async () => {
     try {
       setError('')
-      await importApi.updateMapping(importId, importMapping)
+      await importApi.updateMapping(importId, importMapping, importHeaderRow)
       const res = await importApi.preview(importId)
       setImportPreview(res.data || res)
       setImportStep(2)
@@ -124,6 +168,7 @@ export default function SettingsPage() {
         <Tab label="Типы СИ" />
         <Tab label="Участки" />
         <Tab label="Импорт" />
+        <Tab label="Номера списания" />
       </Tabs>
 
       {/* --- Пользователи --- */}
@@ -320,6 +365,58 @@ export default function SettingsPage() {
           {importStep === 1 && (
             <Box>
               <Typography variant="subtitle1" gutterBottom>Сопоставьте колонки файла с полями системы:</Typography>
+              <FormControl size="small" sx={{ mb: 2, minWidth: 200 }}>
+                <InputLabel>Строка заголовков</InputLabel>
+                <Select value={importHeaderRow} onChange={(e) => {
+                  const row = Number(e.target.value)
+                  setImportHeaderRow(row)
+                  const newHeaders = (importRawRows[row] || []).map((h: any) => String(h ?? '').trim()).filter((h: string) => h !== '' && !h.startsWith('__EMPTY'))
+                  setImportHeaders(newHeaders)
+                  setImportMapping({})
+                }}>
+                  {importRawRows.map((_, i) => (
+                    <MenuItem key={i} value={i}>Строка {i + 1}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Button
+                  size="small"
+                  disabled={columnOffset === 0}
+                  onClick={() => setColumnOffset(v => Math.max(0, v - VISIBLE_COLUMNS))}
+                >
+                  ←
+                </Button>
+                <Typography variant="body2">
+                  Колонки {columnOffset + 1}–{Math.min(columnOffset + VISIBLE_COLUMNS, importRawRows[0]?.length || 0)} из {importRawRows[0]?.length || 0}
+                </Typography>
+                <Button
+                  size="small"
+                  disabled={columnOffset + VISIBLE_COLUMNS >= (importRawRows[0]?.length || 0)}
+                  onClick={() => setColumnOffset(v => v + VISIBLE_COLUMNS)}
+                >
+                  →
+                </Button>
+              </Box>
+
+              <Paper sx={{ mb: 2, maxHeight: 200, overflow: 'auto' }}>
+                <Table size="small">
+                  <TableBody>
+                    {importRawRows.map((row, i) => (
+                      <TableRow key={i} sx={{ bgcolor: i === importHeaderRow ? 'primary.50' : 'inherit' }}>
+                        <TableCell width={40}>{i + 1}</TableCell>
+                        {row.slice(columnOffset, columnOffset + VISIBLE_COLUMNS).map((cell, j) => (
+                          <TableCell key={j} sx={{ whiteSpace: 'nowrap', minWidth: 150 }}>
+                            {formatExcelCell(cell)}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Paper>
+
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -351,11 +448,43 @@ export default function SettingsPage() {
           )}
 
           {importStep === 2 && (
-            <Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 240px)' }}>
               <Typography variant="subtitle1" gutterBottom>
-                Предпросмотр: {importPreview?.newCount ?? 0} новых, {importPreview?.conflictCount ?? 0} конфликтов
+                Предпросмотр: {(importPreview?.new_records ?? importPreview?.newRecords?.length ?? 0)} новых, {(importPreview?.conflicts?.length ?? importPreview?.conflictCount ?? 0)} конфликтов
               </Typography>
-              <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+              {importPreview?.newRecords?.length > 0 && (
+                <Paper sx={{ flex: 1, overflow: 'auto', mb: 2 }}>
+                  <Table size="small" sx={{ minWidth: 800 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>Название</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>Инв.№</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>Серийный №</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>Год выпуска</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>Модель</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>Изготовитель</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>Дата поверки</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>След. поверка</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {importPreview.newRecords.slice(0, 10).map((r: any, i: number) => (
+                        <TableRow key={i}>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>{r.name}</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>{r.inventoryNumber}</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>{r.serialNumber}</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>{r.productionYear || '—'}</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>{r.model || '—'}</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>{r.manufacturer || '—'}</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>{r.lastVerificationDate || '—'}</TableCell>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>{r.nextVerificationDate || '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Paper>
+              )}
+              <Box sx={{ display: 'flex', gap: 1, pt: 1, borderTop: 1, borderColor: 'divider' }}>
                 <Button onClick={() => setImportStep(1)}>Назад</Button>
                 <Button variant="contained" color="success" onClick={handleImportCommit}>Импортировать</Button>
               </Box>
@@ -367,11 +496,57 @@ export default function SettingsPage() {
               <Alert severity="success" sx={{ mb: 2 }}>
                 Импорт завершён. Создано: {importResult?.created ?? 0}, обновлено: {importResult?.updated ?? 0}, ошибок: {importResult?.errors ?? 0}
               </Alert>
-              <Button variant="outlined" onClick={() => { setImportStep(0); setImportId(''); setImportHeaders([]); setImportMapping({}); setImportPreview(null); setImportResult(null) }}>
+              <Button variant="outlined" onClick={() => { setImportStep(0); setImportId(''); setImportHeaders([]); setImportMapping({}); setImportPreview(null); setImportResult(null); setImportRawRows([]); setImportHeaderRow(0) }}>
                 Новый импорт
               </Button>
             </Box>
           )}
+        </Box>
+      )}
+
+      {/* --- Номера списания --- */}
+      {tab === 4 && (
+        <Box>
+          <Typography variant="subtitle1" gutterBottom>Шаблон номера процедуры списания</Typography>
+          <TextField
+            fullWidth
+            margin="dense"
+            label="Шаблон"
+            value={woTemplate}
+            onChange={(e) => setWoTemplate(e.target.value)}
+            helperText="Используйте теги ниже. Остальной текст вставляется как есть."
+          />
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1, mb: 2 }}>
+            {woTags.map((t) => (
+              <Button key={t.tag} size="small" variant="outlined" onClick={() => setWoTemplate((prev) => prev + t.tag)}>
+                {t.label} <code style={{ marginLeft: 4 }}>{t.tag}</code>
+              </Button>
+            ))}
+          </Box>
+          <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
+            <Typography variant="body2" color="textSecondary">Пример номера сейчас:</Typography>
+            <Typography variant="h6" sx={{ fontFamily: 'monospace' }}>
+              {woTemplate
+                .replace(/\{YYYY\}/g, new Date().getFullYear().toString())
+                .replace(/\{YY\}/g, String(new Date().getFullYear()).slice(2))
+                .replace(/\{MM\}/g, String(new Date().getMonth() + 1).padStart(2, '0'))
+                .replace(/\{DD\}/g, String(new Date().getDate()).padStart(2, '0'))
+                .replace(/\{HH\}/g, String(new Date().getHours()).padStart(2, '0'))
+                .replace(/\{mm\}/g, String(new Date().getMinutes()).padStart(2, '0'))
+                .replace(/\{Q\}/g, String(Math.floor(new Date().getMonth() / 3) + 1))
+                .replace(/\{WW\}/g, '21')
+                .replace(/\{D\}/g, '1').replace(/\{W\}/g, '1').replace(/\{M\}/g, '1').replace(/\{Qn\}/g, '1').replace(/\{Y\}/g, '1')
+              }
+            </Typography>
+          </Paper>
+          <Button variant="contained" onClick={async () => {
+            try {
+              setError('')
+              await settingsApi.setWriteoffTemplate(woTemplate)
+              setWoPreview('Сохранено')
+            } catch (e: any) { setError(e.message) }
+          }}>Сохранить шаблон</Button>
+          {woPreview && <Alert severity="success" sx={{ mt: 1, display: 'inline-flex' }}>{woPreview}</Alert>}
         </Box>
       )}
     </Box>

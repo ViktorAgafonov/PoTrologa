@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import {
   Box, Typography, Tabs, Tab, Table, TableHead, TableRow, TableCell,
   TableBody, Paper, Button, TextField, Dialog, DialogTitle, DialogContent,
-  DialogActions, Chip, Stepper, Step, StepLabel, Alert, IconButton,
-  List, ListItem, ListItemText,
+  DialogActions, Chip, Stepper, Step, StepLabel, Alert, List, ListItem,
+  ListItemButton, ListItemText, IconButton,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import UploadIcon from '@mui/icons-material/Upload'
 import PrintIcon from '@mui/icons-material/Print'
 import CancelIcon from '@mui/icons-material/Cancel'
+import DeleteIcon from '@mui/icons-material/Delete'
 import { writeoffApi, instrumentApi, templateApi, generateActUrl } from '../services/api'
 
 // Шаги workflow (без согласования)
@@ -79,12 +80,19 @@ export default function WriteoffPage() {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.pdf,.jpg,.jpeg,.png'
+    input.style.display = 'none'
+    document.body.appendChild(input)
     input.onchange = async () => {
       const file = input.files?.[0]
+      document.body.removeChild(input)
       if (!file) return
-      await writeoffApi.uploadScan(selected.id, file)
-      openDetail(selected)
-      loadProcedures()
+      try {
+        await writeoffApi.uploadScan(selected.id, file, selected.procedureNumber)
+        openDetail(selected)
+        loadProcedures()
+      } catch (err: any) {
+        setError(err.message || 'Ошибка загрузки скана')
+      }
     }
     input.click()
   }
@@ -95,25 +103,39 @@ export default function WriteoffPage() {
     loadProcedures()
   }
 
-  const handleGenerateAct = async (filename: string) => {
+  // Диалог выбора шаблона для печати
+  const [printDlg, setPrintDlg] = useState(false)
+
+  const openPrintDlg = () => {
+    templateApi.getAll().then((r) => setTemplates(r.data || []))
+    setPrintDlg(true)
+  }
+
+  const handlePrintAct = async (filename: string) => {
+    // Экспорт акта
     const res = await fetch(generateActUrl(selected.id), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ template: filename }),
     })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Ошибка генерации акта' }))
+      alert(err.message || 'Ошибка генерации акта')
+      return
+    }
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `act_${selected.procedureNumber}.txt`
+    const ext = filename.split('.').pop() || 'txt'
+    a.download = `act_${selected.procedureNumber}.${ext}`
     a.click()
     URL.revokeObjectURL(url)
-  }
 
-  // Перевод в статус "Ожидание скана" (печать/экспорт выполнена)
-  const handleSendToScan = async () => {
+    // Перевести в WAITING_SCAN
     await writeoffApi.sendToApproval(selected.id)
+    setPrintDlg(false)
     openDetail(selected)
     loadProcedures()
   }
@@ -159,6 +181,16 @@ export default function WriteoffPage() {
                     <TableCell>{new Date(p.createdAt).toLocaleDateString('ru-RU')}</TableCell>
                     <TableCell>
                       <Button size="small" onClick={() => openDetail(p)}>Открыть</Button>
+                      {p.status === 'CANCELLED' && (
+                        <IconButton size="small" color="error" title="Удалить" onClick={async (e) => {
+                          e.stopPropagation()
+                          if (!confirm(`Удалить процедуру ${p.procedureNumber}?`)) return
+                          await writeoffApi.remove(p.id)
+                          setSelected(null)
+                          setTab(0)
+                          loadProcedures()
+                        }}><DeleteIcon fontSize="small" /></IconButton>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -196,14 +228,16 @@ export default function WriteoffPage() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>ID СИ</TableCell>
+                  <TableCell>Инв.ном.СИ</TableCell>
+                  <TableCell>Название</TableCell>
                   <TableCell>Примечание</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {(selected.items || []).map((item: any) => (
                   <TableRow key={item.id}>
-                    <TableCell>{item.instrumentId}</TableCell>
+                    <TableCell>{item.instrument?.inventoryNumber || item.instrumentId}</TableCell>
+                    <TableCell>{item.instrument?.name || '—'}</TableCell>
                     <TableCell>{item.note || '—'}</TableCell>
                   </TableRow>
                 ))}
@@ -211,31 +245,23 @@ export default function WriteoffPage() {
             </Table>
           </Paper>
 
-          {/* Шаблоны актов */}
-          {templates.length > 0 && (
-            <>
-              <Typography variant="h6" sx={{ mb: 1 }}>Печать акта из шаблона</Typography>
-              <Paper sx={{ mb: 2 }}>
-                <List dense>
-                  {templates.map((t: any) => (
-                    <ListItem key={t.filename} secondaryAction={
-                      <IconButton edge="end" onClick={() => handleGenerateAct(t.filename)} title="Экспорт акта">
-                        <PrintIcon />
-                      </IconButton>
-                    }>
-                      <ListItemText primary={t.filename} secondary={new Date(t.modified).toLocaleDateString('ru-RU')} />
-                    </ListItem>
-                  ))}
-                </List>
-              </Paper>
-            </>
+          {/* Документы */}
+          {selected.scanDocument && (
+            <Paper sx={{ p: 2, mb: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>Загруженный документ:</Typography>
+              <Typography variant="body1">
+                <a href={`/api/v1/documents/${selected.scanDocument.id}`} target="_blank" rel="noopener noreferrer">
+                  {selected.scanDocument.filename}
+                </a>
+              </Typography>
+            </Paper>
           )}
 
           {/* Действия */}
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {selected.status === 'DRAFT' && (
-              <Button variant="contained" onClick={handleSendToScan}>
-                Акт напечатан, ожидать скан
+              <Button variant="contained" startIcon={<PrintIcon />} onClick={openPrintDlg}>
+                Распечатать акт списания
               </Button>
             )}
             {selected.status === 'WAITING_SCAN' && (
@@ -243,7 +269,7 @@ export default function WriteoffPage() {
                 Загрузить скан подписанного акта
               </Button>
             )}
-            {selected.status === 'DRAFT' && (
+            {(selected.status === 'DRAFT' || selected.status === 'WAITING_SCAN') && (
               <Button variant="outlined" color="error" startIcon={<CancelIcon />} onClick={handleCancel}>
                 Отменить
               </Button>
@@ -290,6 +316,30 @@ export default function WriteoffPage() {
         <DialogActions>
           <Button onClick={() => setCreateDlg(false)}>Отмена</Button>
           <Button variant="contained" onClick={handleCreate}>Создать</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Диалог выбора шаблона для печати */}
+      <Dialog open={printDlg} onClose={() => setPrintDlg(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Выберите шаблон акта</DialogTitle>
+        <DialogContent>
+          {templates.length === 0 ? (
+            <Alert severity="info">Нет загруженных шаблонов. Добавьте шаблон в разделе «Шаблоны актов».</Alert>
+          ) : (
+            <List dense>
+              {templates.map((t: any) => (
+                <ListItem key={t.filename} disablePadding>
+                  <ListItemButton onClick={() => handlePrintAct(t.filename)}>
+                    <PrintIcon sx={{ mr: 1 }} fontSize="small" />
+                    <ListItemText primary={t.filename} />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPrintDlg(false)}>Отмена</Button>
         </DialogActions>
       </Dialog>
     </Box>

@@ -15,10 +15,13 @@ export class DocumentController {
         res.status(400).json({ success: false, message: 'Файл не загружен' });
         return;
       }
+      const docType = (req.body.type as DocumentType) || DocumentType.OTHER;
+      const customFilename = req.body.filename ? String(req.body.filename) : undefined;
       const doc = await service.upload(
-        Number(req.body.instrumentId),
-        req.body.type as DocumentType,
-        req.file
+        Number(req.body.instrumentId) || 0,
+        docType,
+        req.file,
+        customFilename
       );
       const user = req.user as any;
       await audit.log(user?.id, 'UPLOAD_DOC', 'document', doc.id);

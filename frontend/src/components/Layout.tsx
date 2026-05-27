@@ -38,7 +38,7 @@ export default function Layout() {
       <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
         <Toolbar>
           <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
-            ПоТролога
+            Помощник Метролога
           </Typography>
           <IconButton color="inherit" onClick={(e) => setAnchorEl(e.currentTarget)}>
             <Avatar sx={{ width: 32, height: 32 }}>{user?.login?.[0]?.toUpperCase()}</Avatar>

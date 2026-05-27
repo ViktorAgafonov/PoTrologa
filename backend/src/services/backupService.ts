@@ -47,7 +47,7 @@ export class BackupService {
 
       // Метаданные
       const metadata = JSON.stringify({
-        application: 'ПоТролога',
+        application: 'Помощник Метролога',
         version: '1.0',
         backupType: type,
         recordsCount: count,
