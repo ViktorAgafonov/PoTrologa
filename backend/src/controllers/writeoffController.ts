@@ -5,6 +5,7 @@ import { AppDataSource } from '../config/database';
 import { Instrument } from '../entities/Instrument';
 import { AuditService } from '../services/auditService';
 import { In } from 'typeorm';
+import { isSafeFilename } from '../utils/security';
 
 const service = new WriteoffService();
 const audit = new AuditService();
@@ -76,6 +77,10 @@ export class WriteoffController {
         return;
       }
       const templateFilename = req.body.template as string;
+      if (!isSafeFilename(templateFilename)) {
+        res.status(400).json({ success: false, message: 'Некорректное имя шаблона' });
+        return;
+      }
       const tmplService = new TemplateService();
 
       // Собрать данные для подстановки

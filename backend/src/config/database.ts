@@ -15,12 +15,18 @@ import { InventoryCounter } from '../entities/InventoryCounter';
 import { Setting, WriteoffCounter } from '../entities/Setting';
 
 const dbPath = process.env.DATABASE_PATH || './data/database/potrologa.sqlite';
+const isDev = process.env.NODE_ENV === 'development';
+
+// Предупреждение о режиме автосинхронизации (только для разработки)
+if (!isDev && !process.env.DATABASE_NO_SYNC_WARNING) {
+  console.warn('[WARN] synchronize: true не рекомендуется для продакшена. Используйте миграции.');
+}
 
 export const AppDataSource = new DataSource({
   type: 'sqljs',
   location: path.resolve(dbPath),
   autoSave: true,
-  // SQLite — синхронизация схемы всегда (миграции не требуются)
+  // Автосинхронизация только в режиме разработки
   synchronize: true,
   entities: [
     User,

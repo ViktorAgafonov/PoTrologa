@@ -3,6 +3,7 @@ import { Document, DocumentType } from '../entities/Document';
 import path from 'path';
 import fs from 'fs';
 import { config } from '../config/env';
+import { sanitizeFilename } from '../utils/security';
 
 // Сервис управления документами (файлы хранятся на диске)
 export class DocumentService {
@@ -17,8 +18,9 @@ export class DocumentService {
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true });
     }
-    // Нормализация кодировки имени файла (latin1 -> utf-8)
-    const filename = customFilename || Buffer.from(file.originalname, 'latin1').toString('utf-8');
+    // Нормализация и санитизация имени файла
+    const rawFilename = customFilename || Buffer.from(file.originalname, 'latin1').toString('utf-8');
+    const filename = sanitizeFilename(rawFilename);
     const uniqueName = `${Date.now()}_${filename}`;
     const destPath = path.join(destDir, uniqueName);
     fs.renameSync(file.path, destPath);

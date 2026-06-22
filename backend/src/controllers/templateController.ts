@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { TemplateService } from '../services/templateService';
+import { isSafeFilename } from '../utils/security';
 
 const service = new TemplateService();
 
@@ -29,6 +30,10 @@ export class TemplateController {
   async download(req: Request, res: Response, next: NextFunction) {
     try {
       const filename = req.params.filename as string;
+      if (!isSafeFilename(filename)) {
+        res.status(400).json({ success: false, message: 'Некорректное имя файла' });
+        return;
+      }
       const fp = service.getFilePath(filename);
       res.download(fp, filename);
     } catch (err) { next(err); }
@@ -38,6 +43,10 @@ export class TemplateController {
   async getContent(req: Request, res: Response, next: NextFunction) {
     try {
       const filename = req.params.filename as string;
+      if (!isSafeFilename(filename)) {
+        res.status(400).json({ success: false, message: 'Некорректное имя файла' });
+        return;
+      }
       const content = service.getContent(filename);
       if (content === null) {
         res.status(404).json({ success: false, message: 'Шаблон не найден' });
@@ -50,7 +59,12 @@ export class TemplateController {
   // PUT /api/v1/templates/:filename — обновить содержимое
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      service.saveContent(req.params.filename as string, req.body.content);
+      const filename = req.params.filename as string;
+      if (!isSafeFilename(filename)) {
+        res.status(400).json({ success: false, message: 'Некорректное имя файла' });
+        return;
+      }
+      service.saveContent(filename, req.body.content);
       res.json({ success: true });
     } catch (err) { next(err); }
   }
@@ -58,7 +72,12 @@ export class TemplateController {
   // DELETE /api/v1/templates/:filename — удалить
   async remove(req: Request, res: Response, next: NextFunction) {
     try {
-      service.remove(req.params.filename as string);
+      const filename = req.params.filename as string;
+      if (!isSafeFilename(filename)) {
+        res.status(400).json({ success: false, message: 'Некорректное имя файла' });
+        return;
+      }
+      service.remove(filename);
       res.json({ success: true });
     } catch (err) { next(err); }
   }

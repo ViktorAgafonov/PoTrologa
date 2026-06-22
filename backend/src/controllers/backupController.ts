@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { BackupService } from '../services/backupService';
 import { AuditService } from '../services/auditService';
+import { isSafeFilename } from '../utils/security';
 
 const service = new BackupService();
 const audit = new AuditService();
@@ -29,6 +30,10 @@ export class BackupController {
   async download(req: Request, res: Response, next: NextFunction) {
     try {
       const filename = req.params.id as string;
+      if (!isSafeFilename(filename)) {
+        res.status(400).json({ success: false, message: 'Некорректное имя файла' });
+        return;
+      }
       const filePath = service.getFilePath(filename);
       res.download(filePath, filename);
     } catch (err) { next(err); }

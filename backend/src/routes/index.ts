@@ -19,8 +19,11 @@ import { AuditService } from '../services/auditService';
 
 const router = Router();
 
-// Загрузка файлов во временную папку
-const upload = multer({ dest: path.resolve('./data/tmp') });
+// Загрузка файлов во временную папку с ограничением размера 50MB
+const upload = multer({
+  dest: path.resolve('./data/tmp'),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+});
 
 // Контроллеры
 const auth = new AuthController();

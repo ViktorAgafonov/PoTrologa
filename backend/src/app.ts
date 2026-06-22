@@ -43,14 +43,24 @@ async function bootstrap() {
 
   const adminExists = await userRepo.findOneBy({ login: 'admin' });
   if (!adminExists) {
-    const hash = await bcrypt.hash('admin', 10);
+    // Генерируем криптографически безопасный временный пароль
+    const tempPassword = Array.from({ length: 12 }, () =>
+      'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'.charAt(
+        Math.floor(Math.random() * 56)
+      )
+    ).join('');
+    const hash = await bcrypt.hash(tempPassword, 10);
     await userRepo.save(userRepo.create({
       login: 'admin',
       passwordHash: hash,
       role: 'ADMIN' as any,
       email: '',
     }));
-    console.log('Создан пользователь admin / admin');
+    console.log('========================================');
+    console.log('Создан пользователь admin');
+    console.log(`Временный пароль: ${tempPassword}`);
+    console.log('Смените пароль после первого входа!');
+    console.log('========================================');
   }
 
   const counter = await counterRepo.findOneBy({ id: 1 });

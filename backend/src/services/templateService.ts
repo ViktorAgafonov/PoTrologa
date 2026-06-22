@@ -3,6 +3,7 @@ import path from 'path';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { config } from '../config/env';
+import { sanitizeFilename } from '../utils/security';
 
 // Сервис шаблонов актов списания
 // Шаблонные переменные: {procedureNumber} {date} {reason} {instrumentTable}
@@ -27,7 +28,8 @@ export class TemplateService {
 
   // Загрузить шаблон (декодируем latin1 → utf-8 для кириллицы)
   upload(file: Express.Multer.File): string {
-    const filename = Buffer.from(file.originalname, 'latin1').toString('utf-8');
+    const rawFilename = Buffer.from(file.originalname, 'latin1').toString('utf-8');
+    const filename = sanitizeFilename(rawFilename);
     const destPath = path.join(this.templatesDir, filename);
     fs.renameSync(file.path, destPath);
     return filename;

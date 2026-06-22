@@ -45,12 +45,25 @@ interface ImportSession {
   rawRows: any[][];
   headerRow: number;
   mapping: Record<string, string>;
+  createdAt: number; // timestamp для TTL
 }
+
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 минут
 
 // Сервис импорта XLSX
 export class ImportService {
   private repo = AppDataSource.getRepository(Instrument);
   private static sessions: Map<string, ImportSession> = new Map();
+
+  // Очистка устаревших сессий
+  private static cleanupSessions(): void {
+    const now = Date.now();
+    for (const [id, session] of ImportService.sessions.entries()) {
+      if (now - session.createdAt > SESSION_TTL_MS) {
+        ImportService.sessions.delete(id);
+      }
+    }
+  }
 
   private autoDetectMapping(headers: string[]): Record<string, string> {
     const mapping: Record<string, string> = {};
@@ -80,8 +93,11 @@ export class ImportService {
       mapping = this.autoDetectMapping(headers);
     }
 
+    // Очищаем старые сессии перед созданием новой
+    ImportService.cleanupSessions();
+
     const importId = String(Date.now());
-    ImportService.sessions.set(importId, { rawRows, headerRow, mapping });
+    ImportService.sessions.set(importId, { rawRows, headerRow, mapping, createdAt: Date.now() });
 
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);

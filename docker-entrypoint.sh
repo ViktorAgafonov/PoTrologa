@@ -19,4 +19,11 @@ if ! touch "$DATA_DIR/.write_test" 2>/dev/null; then
 fi
 rm -f "$DATA_DIR/.write_test"
 
+# Генерация SESSION_SECRET если не задан явно
+if [ -z "$SESSION_SECRET" ]; then
+  SESSION_SECRET=$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | fold -w 48 | head -n 1)
+  export SESSION_SECRET
+  echo "[INFO] SESSION_SECRET не задан — сгенерирован автоматически (все сессии сброшены)"
+fi
+
 exec node /app/backend/dist/app.js
